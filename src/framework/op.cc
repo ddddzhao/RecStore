@@ -1,7 +1,25 @@
 #include "framework/op.h"
+#include "grpc_ps/grpc_ps_client.h"
 #include <iostream>
 #include <stdexcept>
 #include <vector>
+
+namespace recstore {
+
+namespace {
+
+GRPCParameterClient& GetGRPCClientInstance() {
+    const std::string PS_HOST = "localhost";
+    const int PS_PORT = 50051;
+    const int SHARD_ID = 0;
+    static std::unique_ptr<GRPCParameterClient> grpc_client =
+        std::make_unique<GRPCParameterClient>(PS_HOST, PS_PORT, SHARD_ID);
+    return *grpc_client;
+}
+
+} // anonymous namespace
+
+}
 
 namespace recstore {
 
@@ -42,21 +60,18 @@ void EmbRead(const base::RecTensor& keys, base::RecTensor& values) {
                                     " but values has length " + std::to_string(values.shape(0)));
     }
 
-    const uint64_t* keys_data = keys.data_as<uint64_t>();
-    float* values_data = values.data_as<float>();
+    auto keys_ptr = keys.data_as<const uint64_t>();
+    base::ConstArray<uint64_t> key_array_view(keys_ptr, L);
+    float* values_ptr = values.data_as<float>();
 
-    // std::cout << "[EmbRead] Reading " << L << " embeddings of dimension " << base::EMBEDDING_DIMENSION_D << std::endl;
+    bool success = GetGRPCClientInstance().GetParameter(key_array_view, values_ptr, /* perf= */ true);
 
-    for (int64_t i = 0; i < L; ++i) {
-        uint64_t key = keys_data[i];
-        // std::cout << "  - Reading embedding for key: " << key << std::endl;
-        
-        for (int64_t j = 0; j < base::EMBEDDING_DIMENSION_D; ++j) {
-            values_data[i * base::EMBEDDING_DIMENSION_D + j] = static_cast<float>(key % 100) + static_cast<float>(j) * 0.1f;
-        }
+    if (!success) {
+        throw std::runtime_error("EmbRead: gRPC GetParameter failed.");
     }
     // std::cout << "[EmbRead] Read operation complete." << std::endl;
 }
+
 
 void EmbUpdate(const base::RecTensor& keys, const base::RecTensor& grads) {
     validate_keys(keys);
@@ -68,21 +83,35 @@ void EmbUpdate(const base::RecTensor& keys, const base::RecTensor& grads) {
                                     " but grads has length " + std::to_string(grads.shape(0)));
     }
 
-    const uint64_t* keys_data = keys.data_as<uint64_t>();
-    const float* grads_data = grads.data_as<float>();
+    auto keys_ptr = keys.data_as<const uint64_t>();
+    std::vector<uint64_t> keys_vec(keys_ptr, keys_ptr + L);
 
-    // std::cout << "[EmbUpdate] Updating " << L << " embeddings of dimension " << base::EMBEDDING_DIMENSION_D << std::endl;
+    auto grads_ptr = grads.data_as<const float>();
+    int64_t emb_dim = grads.shape(1);
+    std::vector<std::vector<float>> grads_vec;
+    grads_vec.reserve(L);
     for (int64_t i = 0; i < L; ++i) {
-        uint64_t key = keys_data[i];
-        const float* grad_vector = &grads_data[i * base::EMBEDDING_DIMENSION_D];
-        
-        // output for example
-        std::cout << "  - Updating embedding for key: " << key 
-                  << " with first grad element: " << grad_vector[0] << std::endl;
-        
-        // true_embedding_for_key -= learning_rate * grad_vector;
+        const float* row_start = grads_ptr + i * emb_dim;
+        grads_vec.emplace_back(row_start, row_start + emb_dim);
+    }
+
+    bool success = GetGRPCClientInstance().PutParameter(keys_vec, grads_vec);
+
+    if (!success) {
+        throw std::runtime_error("EmbUpdate: gRPC PutParameter failed.");
     }
     // std::cout << "[EmbUpdate] Update operation complete." << std::endl;
 }
+
+namespace testing {
+
+void ClearEmbeddingTableForTesting() {
+    bool success = GetGRPCClientInstance().ClearPS();
+    if (!success) {
+        throw std::runtime_error("Failed to clear remote Parameter Server state during testing.");
+    }
+}
+
+} // namespace testing
 
 } // namespace recstore
