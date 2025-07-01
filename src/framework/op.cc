@@ -24,42 +24,42 @@ GRPCParameterClient& GetGRPCClientInstance() {
 namespace recstore {
 
 void validate_keys(const base::RecTensor& keys) {
-    if (keys.dtype() != base::DataType::UINT64) {
-        throw std::invalid_argument("Keys tensor must have dtype UINT64, but got " + 
-                                    base::DataTypeToString(keys.dtype()));
-    }
-    if (keys.dim() != 1) {
-        throw std::invalid_argument("Keys tensor must be 1-dimensional, but has " + 
-                                    std::to_string(keys.dim()) + " dimensions.");
-    }
+  if (keys.dtype() != base::DataType::UINT64) {
+    throw std::invalid_argument("Keys tensor must have dtype UINT64, but got " + base::DataTypeToString(keys.dtype()));
+  }
+  if (keys.dim() != 1) {
+    throw std::invalid_argument(
+        "Keys tensor must be 1-dimensional, but has " + std::to_string(keys.dim()) + " dimensions.");
+  }
 }
 
 void validate_embeddings(const base::RecTensor& embeddings, const std::string& name) {
-    if (embeddings.dtype() != base::DataType::FLOAT32) {
-        throw std::invalid_argument(name + " tensor must have dtype FLOAT32, but got " + 
-                                    base::DataTypeToString(embeddings.dtype()));
-    }
-    if (embeddings.dim() != 2) {
-        throw std::invalid_argument(name + " tensor must be 2-dimensional, but has " + 
-                                    std::to_string(embeddings.dim()) + " dimensions.");
-    }
-    if (embeddings.shape(1) != base::EMBEDDING_DIMENSION_D) {
-        throw std::invalid_argument(name + " tensor has embedding dimension " + 
-                                    std::to_string(embeddings.shape(1)) + ", but expected " + 
-                                    std::to_string(base::EMBEDDING_DIMENSION_D));
-    }
+  if (embeddings.dtype() != base::DataType::FLOAT32) {
+    throw std::invalid_argument(
+        name + " tensor must have dtype FLOAT32, but got " + base::DataTypeToString(embeddings.dtype()));
+  }
+  if (embeddings.dim() != 2) {
+    throw std::invalid_argument(
+        name + " tensor must be 2-dimensional, but has " + std::to_string(embeddings.dim()) + " dimensions.");
+  }
+  if (embeddings.shape(1) != base::EMBEDDING_DIMENSION_D) {
+    throw std::invalid_argument(name + " tensor has embedding dimension " + std::to_string(embeddings.shape(1)) +
+                                ", but expected " + std::to_string(base::EMBEDDING_DIMENSION_D));
+  }
 }
 
 void EmbRead(const base::RecTensor& keys, base::RecTensor& values) {
-    validate_keys(keys);
-    validate_embeddings(values, "Values");
+  validate_keys(keys);
+  validate_embeddings(values, "Values");
 
-    const int64_t L = keys.shape(0);
-    if (values.shape(0) != L) {
-        throw std::invalid_argument("Dimension mismatch: Keys has length " + std::to_string(L) + 
-                                    " but values has length " + std::to_string(values.shape(0)));
-    }
+  const int64_t L = keys.shape(0);
+  if (values.shape(0) != L) {
+    throw std::invalid_argument("Dimension mismatch: Keys has length " + std::to_string(L) + " but values has length " +
+                                std::to_string(values.shape(0)));
+  }
 
+  const uint64_t* keys_data = keys.data_as<uint64_t>();
+  float* values_data        = values.data_as<float>();
     auto keys_ptr = keys.data_as<const uint64_t>();
     base::ConstArray<uint64_t> key_array_view(keys_ptr, L);
     float* values_ptr = values.data_as<float>();
@@ -74,14 +74,14 @@ void EmbRead(const base::RecTensor& keys, base::RecTensor& values) {
 
 
 void EmbUpdate(const base::RecTensor& keys, const base::RecTensor& grads) {
-    validate_keys(keys);
-    validate_embeddings(grads, "Grads");
+  validate_keys(keys);
+  validate_embeddings(grads, "Grads");
 
-    const int64_t L = keys.shape(0);
-    if (grads.shape(0) != L) {
-        throw std::invalid_argument("Dimension mismatch: Keys has length " + std::to_string(L) + 
-                                    " but grads has length " + std::to_string(grads.shape(0)));
-    }
+  const int64_t L = keys.shape(0);
+  if (grads.shape(0) != L) {
+    throw std::invalid_argument("Dimension mismatch: Keys has length " + std::to_string(L) + " but grads has length " +
+                                std::to_string(grads.shape(0)));
+  }
 
     auto keys_ptr = keys.data_as<const uint64_t>();
     std::vector<uint64_t> keys_vec(keys_ptr, keys_ptr + L);
