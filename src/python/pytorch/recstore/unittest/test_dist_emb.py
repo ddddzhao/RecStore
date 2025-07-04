@@ -3,8 +3,8 @@ import unittest
 import sys
 import os
 
-from recstore.DistEmb import DistEmbedding
-from recstore.KVClient import get_kv_client
+from ..DistEmb import DistEmbedding
+from ..KVClient import get_kv_client
 
 class TestDistEmb(unittest.TestCase):
 
