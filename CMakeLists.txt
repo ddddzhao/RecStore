@@ -119,6 +119,9 @@ set(FOLLY_ROOT_DIR "${folly_DIR}")
 find_package(folly REQUIRED)
 find_package(gflags REQUIRED)
 
+include_directories(${PROJECT_SOURCE_DIR}/third_party/folly/folly-install-fPIC/usr/local/include)
+link_directories(${PROJECT_SOURCE_DIR}/third_party/folly/folly-install-fPIC/usr/local/lib)
+
 set(glog_DIR "${PROJECT_SOURCE_DIR}/third_party/glog/glog-install-fPIC/usr/local/lib/cmake/glog")
 find_package(glog CONFIG REQUIRED)
 
