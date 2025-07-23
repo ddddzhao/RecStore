@@ -2,6 +2,7 @@
 
 #include "base/tensor.h"
 #include "base_ps/base_client.h"
+#include <mutex>
 
 using base::RecTensor;
 
@@ -65,7 +66,10 @@ public:
   EmbUpdate(const RecTensor& keys, const RecTensor& grads) = 0; // not urgent
 
   // Prefetch & write (async)
-  virtual uint64_t EmbPrefetch(const RecTensor& keys) = 0; // async prefetch, returns a unique ID to track the prefetch status.
+  virtual uint64_t
+  EmbPrefetch(const RecTensor& keys,
+              const RecTensor& values) = 0; // async prefetch, returns a unique
+                                            // ID to track the prefetch status.
   virtual bool IsPrefetchDone(
       uint64_t prefetch_id) = 0; // returns true if the prefetch identified by
                                  // prefetch_id is complete.
@@ -73,7 +77,7 @@ public:
       uint64_t prefetch_id) = 0; // blocks until the prefetch identified by
                                  // prefetch_id is complete.
   virtual void GetPretchResult(uint64_t prefetch_id,
-                       std::vector<std::vector<float>>* values) = 0;
+                               std::vector<std::vector<float>>* values) = 0;
 
   virtual uint64_t
   EmbWriteAsync(const RecTensor& keys,
@@ -93,17 +97,17 @@ public:
   virtual ~CommonOp() = default;
 };
 
+#ifndef USE_FAKE_KVCLIENT
+
 class KVClientOp : public CommonOp {
 public:
   KVClientOp() : learning_rate_(0.01f), embedding_dim_(-1) {}
 
   void EmbInit(const base::RecTensor& keys,
-               const base::RecTensor& init_values) override {
-    EmbWrite(keys, init_values);
-  }
+               const base::RecTensor& init_values) override;
 
-  // void EmbInit(const base::RecTensor& keys, const InitStrategy& strategy)
-  // override;
+  void EmbInit(const base::RecTensor& keys,
+               const InitStrategy& strategy) override;
 
   void EmbRead(const base::RecTensor& keys, base::RecTensor& values) override;
 
@@ -146,7 +150,8 @@ public:
     throw std::runtime_error("Not impl");
   }
 
-  uint64_t EmbPrefetch(const base::RecTensor& keys) override;
+  uint64_t
+  EmbPrefetch(const base::RecTensor& keys, const RecTensor& values) override;
   bool IsPrefetchDone(uint64_t prefetch_id) override;
   void WaitForPrefetch(uint64_t prefetch_id) override;
   void GetPretchResult(uint64_t prefetch_id,
@@ -179,36 +184,49 @@ private:
   static BasePSClient* ps_client_;
 };
 
-class FakeKVClientOp : public CommonOp {
+std::shared_ptr<CommonOp> GetKVClientOp();
+
+#else
+namespace framework {
+class KVClientOp : public CommonOp {
 public:
-    FakeKVClientOp();
-    void EmbInit(const base::RecTensor& keys, const base::RecTensor& init_values) override;
-    void EmbInit(const base::RecTensor& keys, const InitStrategy& strategy) override;
-    void EmbRead(const base::RecTensor& keys, base::RecTensor& values) override;
-    void EmbWrite(const base::RecTensor& keys, const base::RecTensor& values) override;
-    void EmbUpdate(const base::RecTensor& keys, const base::RecTensor& grads) override;
-    bool EmbExists(const base::RecTensor& keys) override;
-    void EmbDelete(const base::RecTensor& keys) override;
-    uint64_t EmbPrefetch(const base::RecTensor& keys) override;
-    bool IsPrefetchDone(uint64_t prefetch_id) override;
-    void WaitForPrefetch(uint64_t prefetch_id) override;
-    void GetPretchResult(uint64_t prefetch_id, std::vector<std::vector<float>>* values) override;
-    uint64_t EmbWriteAsync(const base::RecTensor& keys, const base::RecTensor& values) override;
-    bool IsWriteDone(uint64_t write_id) override;
-    void WaitForWrite(uint64_t write_id) override;
-    void SaveToFile(const std::string& path) override;
-    void LoadFromFile(const std::string& path) override;
+  KVClientOp();
+
+  void EmbInit(const base::RecTensor& keys,
+               const base::RecTensor& init_values) override;
+  void EmbInit(const base::RecTensor& keys,
+               const InitStrategy& strategy) override;
+  void EmbRead(const base::RecTensor& keys, base::RecTensor& values) override;
+  void EmbWrite(const base::RecTensor& keys,
+                const base::RecTensor& values) override;
+  void EmbUpdate(const base::RecTensor& keys,
+                 const base::RecTensor& grads) override;
+  bool EmbExists(const base::RecTensor& keys) override;
+  void EmbDelete(const base::RecTensor& keys) override;
+  uint64_t EmbPrefetch(const base::RecTensor& keys,
+                       const base::RecTensor& values) override;
+  bool IsPrefetchDone(uint64_t prefetch_id) override;
+  void WaitForPrefetch(uint64_t prefetch_id) override;
+  void GetPretchResult(uint64_t prefetch_id,
+                       std::vector<std::vector<float>>* values) override;
+  uint64_t EmbWriteAsync(const base::RecTensor& keys,
+                         const base::RecTensor& values) override;
+  bool IsWriteDone(uint64_t write_id) override;
+  void WaitForWrite(uint64_t write_id) override;
+  void SaveToFile(const std::string& path) override;
+  void LoadFromFile(const std::string& path) override;
+
 private:
-    std::unordered_map<uint64_t, std::vector<float>> store_;
-    std::mutex mtx_;
-    float learning_rate_ = 0.01f;
-    int64_t embedding_dim_ = -1;
+  std::unordered_map<uint64_t, std::vector<float>> store_;
+  std::mutex mtx_;
+  float learning_rate_;
+  int64_t embedding_dim_;
 };
 
-#ifdef USE_FAKE_KVCLIENT
+} // namespace framework
+
 std::shared_ptr<CommonOp> GetKVClientOp();
-#else
-std::shared_ptr<CommonOp> GetKVClientOp();
+
 #endif
 
 } // namespace recstore
