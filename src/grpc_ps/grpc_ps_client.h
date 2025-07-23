@@ -17,6 +17,7 @@
 #include "base_ps/parameters.h"
 #include "ps.grpc.pb.h"
 #include "ps.pb.h"
+#include "base/tensor.h"
 
 using grpc::Channel;
 using grpc::ClientContext;
@@ -36,11 +37,12 @@ static const int MAX_PARAMETER_BATCH = 2000;
 
 struct PrefetchBatch {
     PrefetchBatch(int request_num) {
-        batch_size = request_num;
+        batch_size_ = request_num;
         key_sizes_.resize(request_num);
         status_.resize(request_num);
         requests_.resize(request_num);
         responses_.resize(request_num);
+        response_readers_.resize(request_num);
         cqs_ = std::make_unique<grpc::CompletionQueue>();
         completed_count_ = 0;
     }
@@ -84,7 +86,7 @@ public:
   ~GRPCParameterClient() {}
 
   // 实现 BasePSClient 的纯虚函数
-  int GetParameter(const base::ConstArray<uint64_t>& keys, float* values) override;
+  virtual int GetParameter(const base::ConstArray<uint64_t>& keys, float* values) override;
 
   int AsyncGetParameter(const base::ConstArray<uint64_t>& keys, float* values) override;
 
@@ -93,8 +95,8 @@ public:
   void Command(recstore::PSCommand command) override;
 
   // 原有的接口方法
-  bool GetParameter(const ConstArray<uint64_t>& keys, std::vector<std::vector<float>>* values);
-  bool GetParameter(const ConstArray<unsigned int>& keys, std::vector<std::vector<float>>* values);
+  int GetParameter(const base::ConstArray<uint64_t>& keys, std::vector<std::vector<float>>* values);
+  bool GetParameter(const base::ConstArray<unsigned int>& keys, std::vector<std::vector<float>>* values);
 
   inline int shard() const { return shard_; }
 
@@ -114,9 +116,9 @@ public:
   void WaitForPrefetch(uint64_t prefetch_id);
   bool GetPrefetchResult(uint64_t prefetch_id, std::vector<std::vector<float>>* values);
 
-  uint64_t EmbWriteAsync(const RecTensor& keys, const RecTensor& values) = 0; // async write, returns a unique ID to track the write status.
-  bool IsWriteDone(uint64_t write_id) = 0; // returns true if the asynchronous write identified by write_id is complete.
-  void WaitForWrite(uint64_t write_id) = 0; // blocks until the asynchronous write identified by write_id is complete.
+  virtual uint64_t EmbWriteAsync(const base::RecTensor& keys, const base::RecTensor& values);
+  virtual bool IsWriteDone(uint64_t write_id);
+  virtual void WaitForWrite(uint64_t write_id);
 
  protected:
   bool Initialize() { return true; }
