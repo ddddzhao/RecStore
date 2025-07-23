@@ -1,7 +1,5 @@
 #pragma once
 
-#include <torch/torch.h>
-
 #include <functional>
 #include <iostream>
 #include <numeric>
