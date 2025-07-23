@@ -51,7 +51,7 @@ target_link_libraries(recstore_tf_ops PRIVATE
 set_target_properties(recstore_tf_ops PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
-    OUTPUT_NAME "_recstore_ops"
+    OUTPUT_NAME "_recstore_tf_ops"
 )
 
 # --- Tests ---
