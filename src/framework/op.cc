@@ -148,7 +148,6 @@ std::shared_ptr<CommonOp> GetKVClientOp() {
 } // namespace recstore
 #else
 namespace recstore {
-namespace framework {
 
 KVClientOp::KVClientOp() : learning_rate_(0.01f), embedding_dim_(-1) {
   std::cout << "KVClientOp initialized with full interface." << std::endl;
@@ -281,8 +280,6 @@ void KVClientOp::GetPretchResult(uint64_t prefetch_id, std::vector<std::vector<f
     throw std::runtime_error("Not impl");
 }
 
-} // namespace framework
-
 // **FIX**: Replaced the previous singleton implementation with the robust
 // std::call_once pattern. This guarantees that the KVClientOp instance is
 // created exactly once, regardless of build environment complexities.
@@ -290,7 +287,7 @@ std::shared_ptr<CommonOp> GetKVClientOp() {
   static std::shared_ptr<CommonOp> instance;
   static std::once_flag once_flag;
   std::call_once(once_flag, []() {
-    instance = std::make_shared<recstore::framework::KVClientOp>();
+    instance = std::make_shared<recstore::KVClientOp>();
   });
   return instance;
 }

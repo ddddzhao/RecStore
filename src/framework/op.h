@@ -187,7 +187,6 @@ private:
 std::shared_ptr<CommonOp> GetKVClientOp();
 
 #else
-namespace framework {
 class KVClientOp : public CommonOp {
 public:
   KVClientOp();
@@ -222,8 +221,6 @@ private:
   float learning_rate_;
   int64_t embedding_dim_;
 };
-
-} // namespace framework
 
 std::shared_ptr<CommonOp> GetKVClientOp();
 
