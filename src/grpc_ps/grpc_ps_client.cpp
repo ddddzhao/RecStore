@@ -234,6 +234,111 @@ bool GRPCParameterClient::GetParameter(
   return true;
 }
 
+// return prefetch id
+uint64_t GRPCParameterClient::PrefetchParameter(const base::ConstArray<uint64_t>& keys) {
+
+  uint64_t prefetch_id = next_prefetch_id_++;
+  int request_num =
+      (keys.Size() + MAX_PARAMETER_BATCH - 1) / MAX_PARAMETER_BATCH;
+
+  struct PrefetchBatch pb(request_num);
+
+  for (int start = 0, index = 0; start < keys.Size();
+      start += MAX_PARAMETER_BATCH, ++index) {
+    int key_size = std::min((int)(keys.Size() - start), MAX_PARAMETER_BATCH);
+    pb.key_sizes_.emplace_back(key_size);
+    auto &status = pb.status_[index];
+    auto &request = pb.requests_[index];
+    auto &response = pb.responses_[index];
+    request.set_keys(reinterpret_cast<const char *>(&keys[start]),
+                    sizeof(uint64_t) * key_size);
+    // rpc
+    grpc::ClientContext context;
+    pb.resonse_readers_.emplace_back(
+        stubs_[0]->AsyncGetParameter(&context, request, &pb.cqs_));
+    auto &rpc = pb.resonse_readers_.back();
+    // GetParameter(&context, request, &response);
+    rpc->Finish(&response, &status, reinterpret_cast<void *>(index));
+  }
+  prefetch_batches_.emplace(prefetch_id, std::move(pb));
+
+  return prefetch_id;
+}
+
+bool GRPCParameterClient::IsPrefetchDone(uint64_t prefetch_id) {
+  auto it = prefetch_batches_.find(prefetch_id);
+  if (it == prefetch_batches_.end()) {
+    LOG(ERROR) << "Invalid prefetch_id: " << prefetch_id;
+    return false;
+  }
+  auto& pb = it->second;
+  int request_num = pb.batch_size_;
+  int get = 0;
+
+  if (pb.completed_count_== pb.batch_size_) {
+    return true;
+  }
+
+  void* got_tag;
+  bool ok = false;
+  while (pb.cqs_->Next(&got_tag, &ok)) {
+    if(unlikely(!ok)) {
+      LOG(ERROR) << "error";
+      return false;
+    }
+    pb.completed_count_++;
+  }
+  return (pb.completed_count_ == pb.batch_size_);
+}
+
+void GRPCParameterClient::WaitForPrefetch(uint64_t prefetch_id) {
+    while (!IsPrefetchDone(prefetch_id)) {
+        // std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+}
+
+bool GRPCParameterClient::GetPrefetchResult(uint64_t prefetch_id, std::vector<std::vector<float>> *values) {
+  auto it = prefetch_batches_.find(prefetch_id);
+  if (it == prefetch_batches_.end()) {
+    LOG(ERROR) << "Invalid prefetch_id: " << prefetch_id;
+    return false;
+  }
+  auto& pb = it->second;
+  int request_num = pb.batch_size_;
+
+  values->clear();
+  int keys_size = 0;
+  for (const auto& size : pb.key_sizes_) {
+    keys_size += size;
+  }
+  values->reserve(key_size);
+  
+  for (int i = 0; i < request_num; ++i) {
+    auto &response = pb.responses_[i];
+    int key_size = pb.key_sizes_[i];
+    auto parameters = reinterpret_cast<const ParameterCompressReader *>(
+        response.parameter_value().data());
+
+    if (unlikely(parameters->size != key_size)) {
+      LOG(ERROR) << "GetParameter error: " << parameters->size << " vs "
+                << key_size;
+      return false;
+    }
+
+    for (int index = 0; index < parameters->item_size(); ++index) {
+      auto item = parameters->item(index);
+      if (item->dim != 0) {
+        values->emplace_back(
+            std::vector<float>(item->embedding, item->embedding + item->dim));
+      } else {
+        values->emplace_back(std::vector<float>(0));
+      }
+    }
+  }
+
+  return true;
+}
+
 bool GRPCParameterClient::ClearPS() {
   CommandRequest request;
   CommandResponse response;
@@ -272,8 +377,8 @@ bool GRPCParameterClient::LoadCkpt(
 }
 
 bool GRPCParameterClient::PutParameter(
-    const std::vector<uint64_t> &keys,
-    const std::vector<std::vector<float>> &values) {
+  const std::vector<uint64_t> &keys,
+  const std::vector<std::vector<float>> &values) {
   for (int start = 0, index = 0; start < keys.size();
        start += MAX_PARAMETER_BATCH, ++index) {
     int key_size = std::min((int)(keys.size() - start), MAX_PARAMETER_BATCH);
