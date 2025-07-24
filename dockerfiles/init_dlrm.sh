@@ -22,9 +22,13 @@ python3 -m venv dlrm_venv
 source ${DLRM_PATH}/dlrm_venv/bin/activate
 pip install --upgrade pip
 
-# Install PyTorch nightly for CUDA 12.1
+# Install PyTorch nightly for CUDA 11.8
 # https://docs.pytorch.org/torchrec/setup-torchrec.html
-pip install torch --index-url https://download.pytorch.org/whl/cu121
-pip install fbgemm-gpu --index-url https://download.pytorch.org/whl/cu121
+pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu118
+pip install fbgemm-gpu==1.0 --index-url https://download.pytorch.org/whl/cu118
 pip install torchmetrics==1.0.3
-pip install torchrec --index-url https://download.pytorch.org/whl/cu121
+pip install torchrec==1.0 --index-url https://download.pytorch.org/whl/cu118
+
+
+# Usage
+# torchrun --nnodes 1 --nproc_per_node 2 --rdzv_backend c10d --rdzv_endpoint localhost --rdzv_id 54321 --role trainer dlrm_main.py

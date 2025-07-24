@@ -100,7 +100,7 @@ cmake .. -DCMAKE_BUILD_TYPE=Release ${CMAKE_REQUIRE} && make -j && sudo make ins
 
 mkdir -p ${PROJECT_PATH}/third_party/libtorch
 cd ${PROJECT_PATH}/third_party/libtorch
-wget https://download.pytorch.org/libtorch/${CUDA_VERSION}/libtorch-cxx11-abi-shared-with-deps-${TORCH_VERSION}%2B${CUDA_VERSION}.zip -O libtorch.zip \
+wget https://download.pytorch.org/libtorch/${CUDA_VERSION}/libtorch-shared-with-deps-${TORCH_VERSION}%2B${CUDA_VERSION}.zip -O libtorch.zip \
 && unzip libtorch.zip -d . > /dev/null \
 && rm libtorch.zip
 
