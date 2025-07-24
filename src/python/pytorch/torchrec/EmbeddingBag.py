@@ -7,6 +7,12 @@ from torchrec.sparse.jagged_tensor import KeyedJaggedTensor, KeyedTensor
 from ..recstore.KVClient import get_kv_client, RecStoreClient
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+class RecStoreEmbeddingBagConfig:
+    def __init__(self, name, num_embeddings, embedding_dim, feature_names=None):
+        self.name = name
+        self.num_embeddings = num_embeddings
+        self.embedding_dim = embedding_dim
+        self.feature_names = feature_names or [name]
 
 class _RecStoreEBCFunction(Function):
     """
@@ -109,24 +115,28 @@ class RecStoreEmbeddingBagCollection(torch.nn.Module):
         if not embedding_bag_configs:
             raise ValueError("embedding_bag_configs cannot be empty.")
 
-        self._embedding_bag_configs = embedding_bag_configs
+        self._embedding_bag_configs = [
+            RecStoreEmbeddingBagConfig(
+                name=config["name"],
+                num_embeddings=config["num_embeddings"],
+                embedding_dim=config["embedding_dim"],
+                feature_names=config.get("feature_names", [config["name"]])
+            )
+            for config in embedding_bag_configs
+        ]
         self.kv_client: RecStoreClient = get_kv_client()
         self._embedding_dims: Dict[str, int] = {}
 
         logging.info("Initializing RecStoreEmbeddingBagCollection...")
         for config in self._embedding_bag_configs:
-            self._validate_config(config)
-            name: str = config["name"]
-            num_embeddings: int = config["num_embeddings"]
-            embedding_dim: int = config["embedding_dim"]
-            
+            name: str = config.name
+            num_embeddings: int = config.num_embeddings
+            embedding_dim: int = config.embedding_dim
             self._embedding_dims[name] = embedding_dim
-            
             logging.info(
                 f"  - Initializing table '{name}' in RecStore backend with "
                 f"shape ({num_embeddings}, {embedding_dim})."
             )
-            
             self.kv_client.init_data(
                 name=name,
                 shape=(num_embeddings, embedding_dim),
@@ -135,6 +145,9 @@ class RecStoreEmbeddingBagCollection(torch.nn.Module):
             )
         logging.info("RecStoreEmbeddingBagCollection initialized successfully.")
 
+    def embedding_bag_configs(self):
+        return self._embedding_bag_configs
+
     def _validate_config(self, config: Dict[str, Any]):
         """Helper to validate a single embedding table configuration."""
         required_keys = ["name", "num_embeddings", "embedding_dim"]
@@ -142,7 +155,7 @@ class RecStoreEmbeddingBagCollection(torch.nn.Module):
             if key not in config:
                 raise ValueError(f"Missing required key '{key}' in embedding_bag_configs.")
 
-    def forward(self, features: KeyedJaggedTensor) -> KeyedJaggedTensor:
+    def forward(self, features: KeyedJaggedTensor) -> KeyedTensor:
         """
         Performs the embedding lookup.
 
@@ -153,12 +166,15 @@ class RecStoreEmbeddingBagCollection(torch.nn.Module):
             features (KeyedJaggedTensor): The input features from the DLRM model.
 
         Returns:
-            KeyedJaggedTensor: The looked-up embedding vectors.
+            KeyedTensor: The looked-up embedding vectors.
         """
-        return _RecStoreEBCFunction.apply(features, self)
+        kjt = _RecStoreEBCFunction.apply(features, self)
+        if isinstance(kjt, KeyedJaggedTensor):
+            return kjt.to_keyed_tensor()
+        return kjt
 
     def __repr__(self) -> str:
-        tables = list(self._embedding_dims.keys())
+        tables = [c.name for c in self._embedding_bag_configs]
         return (
             f"{self.__class__.__name__}(\n"
             f"  (tables): {tables}\n"
