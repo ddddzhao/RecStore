@@ -81,7 +81,7 @@ cd ${PROJECT_PATH}/third_party/cityhash/ && ./configure && make -j20 && sudo mak
 mkdir -p ${PROJECT_PATH}/binary
 cd ${PROJECT_PATH}/binary
 # pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple torch-2.0.0a0+git*.whl
-pip install torch==2.0.0 -f https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/pytorch/
+pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu118
 
 # HugeCTR
 cd ${PROJECT_PATH}/build
