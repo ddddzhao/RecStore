@@ -10,15 +10,20 @@ namespace framework {
 
 // Log level: 0=ERROR, 1=WARNING, 2=INFO, 3=DEBUG
 static int get_log_level() {
-    static int level = []() {
-        const char* env = std::getenv("RECSTORE_LOG_LEVEL");
-        if (!env) return 2; // Default INFO
-        return std::atoi(env);
-    }();
-    return level;
+  static int level = []() {
+    const char* env = std::getenv("RECSTORE_LOG_LEVEL");
+    if (!env)
+      return 2; // Default INFO
+    return std::atoi(env);
+  }();
+  return level;
 }
-#define RECSTORE_LOG(level, msg) \
-    do { if (get_log_level() >= level) { std::cout << msg << std::endl; } } while(0)
+#define RECSTORE_LOG(level, msg)                                               \
+  do {                                                                         \
+    if (get_log_level() >= level) {                                            \
+      std::cout << msg << std::endl;                                           \
+    }                                                                          \
+  } while (0)
 
 static inline base::RecTensor
 ToRecTensor(const torch::Tensor& tensor, base::DataType dtype) {
@@ -30,7 +35,10 @@ ToRecTensor(const torch::Tensor& tensor, base::DataType dtype) {
 }
 
 torch::Tensor emb_read_torch(const torch::Tensor& keys, int64_t embedding_dim) {
-  RECSTORE_LOG(2, "[INFO] emb_read_torch called: keys shape=" << keys.sizes() << ", dtype=" << keys.dtype() << ", embedding_dim=" << embedding_dim);
+  RECSTORE_LOG(2,
+               "[INFO] emb_read_torch called: keys shape="
+                   << keys.sizes() << ", dtype=" << keys.dtype()
+                   << ", embedding_dim=" << embedding_dim);
   TORCH_CHECK(keys.dim() == 1, "Keys tensor must be 1-dimensional");
   TORCH_CHECK(keys.scalar_type() == torch::kInt64,
               "Keys tensor must have dtype int64");
@@ -62,7 +70,9 @@ torch::Tensor emb_read_torch(const torch::Tensor& keys, int64_t embedding_dim) {
 }
 
 void emb_update_torch(const torch::Tensor& keys, const torch::Tensor& grads) {
-  RECSTORE_LOG(2, "[INFO] emb_update_torch called: keys shape=" << keys.sizes() << ", grads shape=" << grads.sizes());
+  RECSTORE_LOG(2,
+               "[INFO] emb_update_torch called: keys shape="
+                   << keys.sizes() << ", grads shape=" << grads.sizes());
   TORCH_CHECK(keys.dim() == 1, "Keys tensor must be 1-dimensional");
   TORCH_CHECK(keys.scalar_type() == torch::kInt64,
               "Keys tensor must have dtype int64");
@@ -90,7 +100,9 @@ void emb_update_torch(const torch::Tensor& keys, const torch::Tensor& grads) {
 }
 
 void emb_write_torch(const torch::Tensor& keys, const torch::Tensor& values) {
-  RECSTORE_LOG(2, "[INFO] emb_write_torch called: keys shape=" << keys.sizes() << ", values shape=" << values.sizes());
+  RECSTORE_LOG(2,
+               "[INFO] emb_write_torch called: keys shape="
+                   << keys.sizes() << ", values shape=" << values.sizes());
   TORCH_CHECK(keys.dim() == 1, "Keys tensor must be 1-dimensional");
   TORCH_CHECK(keys.scalar_type() == torch::kInt64,
               "Keys tensor must have dtype int64");
