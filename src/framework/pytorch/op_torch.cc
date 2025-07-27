@@ -35,6 +35,20 @@ ToRecTensor(const torch::Tensor& tensor, base::DataType dtype) {
 }
 
 torch::Tensor emb_read_torch(const torch::Tensor& keys, int64_t embedding_dim) {
+  RECSTORE_LOG(0,
+               "[DEBUG][op_torch] emb_read_torch: keys shape="
+                   << keys.sizes() << ", dtype=" << keys.dtype()
+                   << ", data_ptr=" << keys.data_ptr());
+  RECSTORE_LOG(
+      0, "[DEBUG][op_torch] emb_read_torch: embedding_dim=" << embedding_dim);
+  if (keys.size(0) > 0) {
+    auto keys_acc = keys.accessor<int64_t, 1>();
+    std::ostringstream oss;
+    oss << "[DEBUG][op_torch] emb_read_torch: keys start with: ";
+    for (int i = 0; i < std::min((int64_t)10, keys.size(0)); ++i)
+      oss << keys_acc[i] << ", ";
+    RECSTORE_LOG(0, oss.str());
+  }
   RECSTORE_LOG(2,
                "[INFO] emb_read_torch called: keys shape="
                    << keys.sizes() << ", dtype=" << keys.dtype()
@@ -58,6 +72,23 @@ torch::Tensor emb_read_torch(const torch::Tensor& keys, int64_t embedding_dim) {
       {num_keys, embedding_dim}, keys.options().dtype(torch::kFloat32));
   TORCH_CHECK(values.is_contiguous(),
               "Internal error: Created values tensor is not contiguous");
+  RECSTORE_LOG(0,
+               "[DEBUG][op_torch] emb_read_torch: values shape="
+                   << values.sizes() << ", dtype=" << values.dtype()
+                   << ", data_ptr=" << values.data_ptr());
+  if (values.size(0) > 0) {
+    auto values_acc = values.accessor<float, 2>();
+    std::ostringstream oss;
+    oss << "[DEBUG][op_torch] emb_read_torch: values start with: ";
+    for (int i = 0; i < std::min((int64_t)10, values.size(0)); ++i) {
+      oss << "[";
+      for (int j = 0; j < std::min((int64_t)10, values.size(1)); ++j) {
+        oss << values_acc[i][j] << ", ";
+      }
+      oss << "] ";
+    }
+    RECSTORE_LOG(0, oss.str());
+  }
 
   base::RecTensor rec_keys   = ToRecTensor(keys, base::DataType::UINT64);
   base::RecTensor rec_values = ToRecTensor(values, base::DataType::FLOAT32);
@@ -70,6 +101,35 @@ torch::Tensor emb_read_torch(const torch::Tensor& keys, int64_t embedding_dim) {
 }
 
 void emb_update_torch(const torch::Tensor& keys, const torch::Tensor& grads) {
+  RECSTORE_LOG(0,
+               "[DEBUG][op_torch] emb_update_torch: keys shape="
+                   << keys.sizes() << ", dtype=" << keys.dtype()
+                   << ", data_ptr=" << keys.data_ptr());
+  RECSTORE_LOG(0,
+               "[DEBUG][op_torch] emb_update_torch: grads shape="
+                   << grads.sizes() << ", dtype=" << grads.dtype()
+                   << ", data_ptr=" << grads.data_ptr());
+  if (keys.size(0) > 0) {
+    auto keys_acc = keys.accessor<int64_t, 1>();
+    std::ostringstream oss;
+    oss << "[DEBUG][op_torch] emb_update_torch: keys start with: ";
+    for (int i = 0; i < std::min((int64_t)10, keys.size(0)); ++i)
+      oss << keys_acc[i] << ", ";
+    RECSTORE_LOG(0, oss.str());
+  }
+  if (grads.size(0) > 0) {
+    auto grads_acc = grads.accessor<float, 2>();
+    std::ostringstream oss;
+    oss << "[DEBUG][op_torch] emb_update_torch: grads start with: ";
+    for (int i = 0; i < std::min((int64_t)10, grads.size(0)); ++i) {
+      oss << "[";
+      for (int j = 0; j < std::min((int64_t)10, grads.size(1)); ++j) {
+        oss << grads_acc[i][j] << ", ";
+      }
+      oss << "] ";
+    }
+    RECSTORE_LOG(0, oss.str());
+  }
   RECSTORE_LOG(2,
                "[INFO] emb_update_torch called: keys shape="
                    << keys.sizes() << ", grads shape=" << grads.sizes());
@@ -100,6 +160,35 @@ void emb_update_torch(const torch::Tensor& keys, const torch::Tensor& grads) {
 }
 
 void emb_write_torch(const torch::Tensor& keys, const torch::Tensor& values) {
+  RECSTORE_LOG(0,
+               "[DEBUG][op_torch] emb_write_torch: keys shape="
+                   << keys.sizes() << ", dtype=" << keys.dtype()
+                   << ", data_ptr=" << keys.data_ptr());
+  RECSTORE_LOG(0,
+               "[DEBUG][op_torch] emb_write_torch: values shape="
+                   << values.sizes() << ", dtype=" << values.dtype()
+                   << ", data_ptr=" << values.data_ptr());
+  if (keys.size(0) > 0) {
+    auto keys_acc = keys.accessor<int64_t, 1>();
+    std::ostringstream oss;
+    oss << "[DEBUG][op_torch] emb_write_torch: keys start with: ";
+    for (int i = 0; i < std::min((int64_t)10, keys.size(0)); ++i)
+      oss << keys_acc[i] << ", ";
+    RECSTORE_LOG(0, oss.str());
+  }
+  if (values.size(0) > 0) {
+    auto values_acc = values.accessor<float, 2>();
+    std::ostringstream oss;
+    oss << "[DEBUG][op_torch] emb_write_torch: values start with: ";
+    for (int i = 0; i < std::min((int64_t)10, values.size(0)); ++i) {
+      oss << "[";
+      for (int j = 0; j < std::min((int64_t)10, values.size(1)); ++j) {
+        oss << values_acc[i][j] << ", ";
+      }
+      oss << "] ";
+    }
+    RECSTORE_LOG(0, oss.str());
+  }
   RECSTORE_LOG(2,
                "[INFO] emb_write_torch called: keys shape="
                    << keys.sizes() << ", values shape=" << values.sizes());
