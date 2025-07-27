@@ -65,8 +65,8 @@ class _RecStoreEBCFunction(Function):
         embedding_dim = module._embedding_dims[feature_keys[0]]
         
         # Add debug logging
-        logging.info(f"Debug: batch_size={batch_size}, num_features={len(feature_keys)}, embedding_dim={embedding_dim}")
-        logging.info(f"Debug: lengths shape={len(features.lengths())}, values shape={features.values().shape}")
+        # logging.info(f"Debug: batch_size={batch_size}, num_features={len(feature_keys)}, embedding_dim={embedding_dim}")
+        # logging.info(f"Debug: lengths shape={len(features.lengths())}, values shape={features.values().shape}")
         
         # Initialize output tensor: (batch_size, num_features, embedding_dim)
         output = torch.zeros(batch_size, len(feature_keys), embedding_dim, 
@@ -146,8 +146,8 @@ class _RecStoreEBCFunction(Function):
         grad_output_reshaped = grad_output_values.reshape(batch_size, num_features, embedding_dim)
         
         # Add debug logging
-        logging.info(f"Debug backward: batch_size={batch_size}, num_features={num_features}, embedding_dim={embedding_dim}")
-        logging.info(f"Debug backward: grad_output_values shape={grad_output_values.shape}, grad_output_reshaped shape={grad_output_reshaped.shape}")
+        # logging.info(f"Debug backward: batch_size={batch_size}, num_features={num_features}, embedding_dim={embedding_dim}")
+        # logging.info(f"Debug backward: grad_output_values shape={grad_output_values.shape}, grad_output_reshaped shape={grad_output_reshaped.shape}")
         
         lengths = features.lengths()
         values = features.values()
