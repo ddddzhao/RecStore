@@ -10,7 +10,10 @@ find_package(Python 3.10 COMPONENTS Interpreter Development REQUIRED)
 add_library(recstore_torch_ops SHARED
     op_torch.cc
     ../op.cc
+    ../../grpc_ps/grpc_ps_client.cpp
 )
+
+target_compile_definitions(recstore_torch_ops PRIVATE _GLIBCXX_USE_CXX11_ABI=1)
 
 if(USE_FAKE_KVCLIENT)
     target_compile_definitions(recstore_torch_ops PRIVATE USE_FAKE_KVCLIENT)
@@ -21,10 +24,16 @@ target_include_directories(recstore_torch_ops PRIVATE
     ${PROJECT_SOURCE_DIR}/src
     ${TORCH_INCLUDE_DIRS}
     ${Python_INCLUDE_DIRS}
+    ${PROJECT_SOURCE_DIR}/src/grpc_ps
 )
 
 # Link the compiled library against the libraries provided by PyTorch.
+find_package(Protobuf REQUIRED)
+find_package(gRPC REQUIRED)
 target_link_libraries(recstore_torch_ops PRIVATE
+    grpc_ps_client
+    protobuf::libprotobuf
+    gRPC::grpc++
     ${TORCH_LIBRARIES}
 )
 
