@@ -4,12 +4,14 @@
 #include <stdexcept>
 #include <vector>
 #include <unordered_map>
+#include <filesystem>
 #include <mutex>
 #include <memory>
 #include <numeric>
 #include <thread>
 #include <cstdlib>
 #include <string>
+#include <fstream>
 
 // Assuming InitStrategyType is defined in base/tensor.h
 #include "base/tensor.h"
@@ -33,6 +35,24 @@ static int get_log_level() {
       std::cout << msg << std::endl;                                           \
     }                                                                          \
   } while (0)
+
+json load_config_from_file(const std::string& config_path) {
+  std::ifstream file(config_path);
+  if (!file.is_open()) {
+    throw std::runtime_error("Cannot open config file: " + config_path);
+  }
+
+  std::string content(
+      (std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+  file.close();
+
+  try {
+    return json::parse(content);
+  } catch (const json::exception& e) {
+    throw std::runtime_error(
+        "Failed to parse config file: " + std::string(e.what()));
+  }
+}
 
 void validate_keys(const base::RecTensor& keys) {
   if (keys.dtype() != base::DataType::UINT64) {
@@ -99,18 +119,81 @@ std::shared_ptr<CommonOp> GetKVClientOp() {
 } // namespace recstore
 
 #ifndef USE_FAKE_KVCLIENT
+
+#  include "grpc_ps/grpc_ps_client.h"
 namespace recstore {
 
-KVClientOp::KVClientOp() : learning_rate_(0.01f), embedding_dim_(-1) {
-  RECSTORE_LOG(
-      2,
-      "[INFO] [MOCK] KVClientOp constructed, embedding_dim_=-1, learning_rate_="
-          << learning_rate_);
+BasePSClient* create_ps_client_from_config(const json& config) {
+  json client_config;
+  if (config.contains("client")) {
+    client_config = config["client"];
+  } else {
+    client_config = json{{"host", "127.0.0.1"}, {"port", 15000}, {"shard", 0}};
+  }
+
+  return new GRPCParameterClient(client_config);
+}
+
+KVClientOp::KVClientOp() {
+  if (!ps_client_) {
+    try {
+      auto current_path = std::filesystem::current_path();
+      RECSTORE_LOG(
+          2, "[INFO] Current working directory: " + current_path.string());
+
+      std::filesystem::path config_path;
+      bool config_found = false;
+
+      for (auto p = current_path; p.has_parent_path(); p = p.parent_path()) {
+        if (std::filesystem::exists(p / "recstore_config.json")) {
+          config_path  = p / "recstore_config.json";
+          config_found = true;
+          RECSTORE_LOG(2,
+                       "[INFO] Found config file at: " + config_path.string());
+          break;
+        }
+      }
+
+      if (!config_found) {
+        throw std::runtime_error(
+            "Could not find 'recstore_config.json' in current or any parent "
+            "directory starting from: " +
+            current_path.string());
+      }
+
+      std::ifstream test_file(config_path);
+      if (!test_file.good()) {
+        throw std::runtime_error(
+            "Config file not found: " + config_path.string() +
+            ". Please ensure recstore_config.json exists "
+            "in the project root directory.");
+      }
+      test_file.close();
+
+      json config = load_config_from_file(config_path);
+
+      ps_client_ = create_ps_client_from_config(config);
+
+      RECSTORE_LOG(2,
+                   "[INFO] PS client initialized successfully from config: " +
+                       config_path.string());
+    } catch (const std::exception& e) {
+      RECSTORE_LOG(
+          0,
+          "[ERROR] Failed to initialize PS client: " + std::string(e.what()));
+      throw;
+    }
+  }
 }
 
 BasePSClient* KVClientOp::ps_client_ = nullptr;
 
 void KVClientOp::EmbRead(const RecTensor& keys, RecTensor& values) {
+  if (ps_client_ == nullptr) {
+    throw std::runtime_error("PS client is not initialized. Please call "
+                             "KVClientOp::SetPSClient() first.");
+  }
+
   RECSTORE_LOG(0,
                "[DEBUG][op.cc] EmbRead: keys.shape="
                    << keys.shape(0) << ", values.shape=[" << values.shape(0)
@@ -166,6 +249,11 @@ void KVClientOp::EmbUpdate(const base::RecTensor& keys,
 }
 
 void KVClientOp::EmbWrite(const RecTensor& keys, const RecTensor& values) {
+  if (ps_client_ == nullptr) {
+    throw std::runtime_error("PS client is not initialized. Please call "
+                             "KVClientOp::SetPSClient() first.");
+  }
+
   validate_keys(keys);
   validate_embeddings(values, "Values");
 

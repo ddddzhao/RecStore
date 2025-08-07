@@ -83,8 +83,13 @@ CUDA_VERSION="cu118"
 
 mkdir -p ${PROJECT_PATH}/binary
 cd ${PROJECT_PATH}/binary
-# pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple torch-2.0.0a0+git*.whl
-pip install torch==${TORCH_VERSION} --index-url https://download.pytorch.org/whl/cu118
+################################################################################
+#     Manually compile torch from source, specifically, enable the CXX11 ABI.
+#     (binary/pytorch/dist/torch-2.5.0a0+gita8d6afb-cp310-cp310-linux_x86_64.whl)
+#     TODO: Manually compile and install torch commands or share wheel files.
+################################################################################
+# pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple torch-2.5.0a0+git*.whl
+# pip install torch==${TORCH_VERSION} --index-url https://download.pytorch.org/whl/cu118
 
 # HugeCTR
 cd ${PROJECT_PATH}/build
@@ -100,7 +105,7 @@ cmake .. -DCMAKE_BUILD_TYPE=Release ${CMAKE_REQUIRE} && make -j && sudo make ins
 
 mkdir -p ${PROJECT_PATH}/third_party/libtorch
 cd ${PROJECT_PATH}/third_party/libtorch
-wget https://download.pytorch.org/libtorch/${CUDA_VERSION}/libtorch-shared-with-deps-${TORCH_VERSION}%2B${CUDA_VERSION}.zip -O libtorch.zip \
+wget https://download.pytorch.org/libtorch/${CUDA_VERSION}/libtorch-cxx11-abi-shared-with-deps-${TORCH_VERSION}%2B${CUDA_VERSION}.zip -O libtorch.zip \
 && unzip libtorch.zip -d . > /dev/null \
 && rm libtorch.zip
 
