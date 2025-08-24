@@ -27,8 +27,8 @@ protected:
     config_.num_threads_ = 16;
     config_.json_config_ = {
         {"path", test_dir_},
-        {"shmcapacity", 4 * 1024 * 1024},   // 4MB
-        {"ssdcapacity", 8 * 1024 * 1024}    // 8MB
+        {"shmcapacity", 40 * 1024 * 1024},   // 4MB
+        {"ssdcapacity", 80 * 1024 * 1024}    // 8MB
     };
 
     kv_ = std::make_unique<KVEngineHybrid>(config_);
