@@ -30,7 +30,8 @@ public:
       But according to my test, if using id has better scalability.d
      */
     //jedallocx(ptr,0);
-    jedallocx(ptr, id);
+    if (!ptr) return;
+    jedallocx(ptr, MALLOCX_TCACHE_NONE); 
   }
 
 private:
