@@ -29,6 +29,8 @@ class _RecStoreEBCFunction(Function):
         
         all_embeddings = module.kv_client.pull(name=config.name, ids=features_values)
 
+        all_embeddings.requires_grad = True
+
         local_indices = torch.arange(
             len(features_values), device=features_values.device, dtype=torch.long
         )
@@ -120,15 +122,36 @@ class RecStoreEmbeddingBagCollection(torch.nn.Module):
     def forward(self, features: KeyedJaggedTensor) -> KeyedTensor:
         values = features.values().contiguous()
         lengths = features.lengths().contiguous()
+        config = self.embedding_bag_configs()[0]
+        config_name = config.name
 
-        pooled_embs_values = _RecStoreEBCFunction.apply(
-            self,
-            self.feature_keys,
-            values,
-            lengths,
+        all_embeddings = self.kv_client.pull(name=config_name, ids=values)
+
+        all_embeddings.requires_grad_()
+
+        def grad_hook(grad):
+            self._trace.append(
+                (config_name, values.detach().cpu(), grad.detach().cpu())
+            )
+        
+        all_embeddings.register_hook(grad_hook)
+
+        local_indices = torch.arange(
+            len(values), device=values.device, dtype=torch.long
+        )
+        offsets = torch.cat(
+            [torch.tensor([0], device=lengths.device), torch.cumsum(lengths, 0)[:-1]]
         )
 
-        batch_size = pooled_embs_values.shape[0]
+        pooled_embs_values = F.embedding_bag(
+            input=local_indices,
+            weight=all_embeddings,
+            offsets=offsets,
+            mode="sum",
+            sparse=False,
+        )
+
+        batch_size = lengths.numel() // len(self.feature_keys)
         reshaped_values = pooled_embs_values.view(batch_size, -1)
         
         length_per_key = [batch_size] * len(self.feature_keys)
