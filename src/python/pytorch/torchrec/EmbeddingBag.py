@@ -99,10 +99,12 @@ class RecStoreEmbeddingBagCollection(torch.nn.Module):
         
         self.feature_keys: List[str] = []
         self._config_names: Dict[str, str] = {}
+        self._embedding_dims: List[int] = [] 
         for c in self._embedding_bag_configs:
             for feature_name in c.feature_names:
                 self.feature_keys.append(feature_name)
                 self._config_names[feature_name] = c.name
+                self._embedding_dims.append(c.embedding_dim)
 
         self._trace = []
 
@@ -120,45 +122,50 @@ class RecStoreEmbeddingBagCollection(torch.nn.Module):
         self._trace = []
 
     def forward(self, features: KeyedJaggedTensor) -> KeyedTensor:
-        values = features.values().contiguous()
-        lengths = features.lengths().contiguous()
-        config = self.embedding_bag_configs()[0]
-        config_name = config.name
-
-        all_embeddings = self.kv_client.pull(name=config_name, ids=values)
-
-        all_embeddings.requires_grad_()
-
-        def grad_hook(grad):
-            self._trace.append(
-                (config_name, values.detach().cpu(), grad.detach().cpu())
-            )
+        pooled_embs_list = []
         
-        all_embeddings.register_hook(grad_hook)
+        for key in features.keys():
+            config_name = self._config_names[key]
+            kjt_per_feature = features[key]
+            values = kjt_per_feature.values()
+            lengths = kjt_per_feature.lengths()
 
-        local_indices = torch.arange(
-            len(values), device=values.device, dtype=torch.long
-        )
-        offsets = torch.cat(
-            [torch.tensor([0], device=lengths.device), torch.cumsum(lengths, 0)[:-1]]
-        )
+            if values.numel() == 0:
+                config = next(c for c in self._embedding_bag_configs if key in c.feature_names)
+                pooled_embs = torch.zeros(len(lengths), config.embedding_dim, device=features.device(), dtype=torch.float32)
+            else:
+                all_embeddings = self.kv_client.pull(name=config_name, ids=values)
+                all_embeddings.requires_grad_()
 
-        pooled_embs_values = F.embedding_bag(
-            input=local_indices,
-            weight=all_embeddings,
-            offsets=offsets,
-            mode="sum",
-            sparse=False,
-        )
+                def grad_hook(grad, name=config_name, ids=values):
+                    self._trace.append(
+                        (name, ids.detach().cpu(), grad.detach().cpu())
+                    )
+                all_embeddings.register_hook(grad_hook)
 
-        batch_size = lengths.numel() // len(self.feature_keys)
-        reshaped_values = pooled_embs_values.view(batch_size, -1)
+                local_indices = torch.arange(len(values), device=values.device, dtype=torch.long)
+                offsets = torch.cat([torch.tensor([0], device=lengths.device), torch.cumsum(lengths, 0)[:-1]])
+                pooled_embs = F.embedding_bag(
+                    input=local_indices,
+                    weight=all_embeddings,
+                    offsets=offsets,
+                    mode="sum",
+                    sparse=False,
+                )
+            
+            pooled_embs_list.append(pooled_embs)
         
-        length_per_key = [batch_size] * len(self.feature_keys)
-        
+        concatenated_embs = torch.cat(pooled_embs_list, dim=1)
+
+
+        length_per_key = [
+            next(c.embedding_dim for c in self._embedding_bag_configs if key in c.feature_names)
+            for key in features.keys()
+        ]
+
         return KeyedTensor(
-            keys=self.feature_keys,
-            values=reshaped_values,
+            keys=features.keys(),
+            values=concatenated_embs,
             length_per_key=length_per_key,
         )
 
