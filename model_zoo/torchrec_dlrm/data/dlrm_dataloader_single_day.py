@@ -142,11 +142,9 @@ def get_dataloader(args: argparse.Namespace, backend: str, stage: str) -> DataLo
     ):
         return _get_random_dataloader(args, stage)
     else:
-        # 检查是否为单天模式
         if hasattr(args, 'single_day_mode') and args.single_day_mode:
             return _get_single_day_dataloader(args, stage)
         else:
-            # 使用原有的多天数据加载器
             return _get_in_memory_dataloader(args, stage)
 
 

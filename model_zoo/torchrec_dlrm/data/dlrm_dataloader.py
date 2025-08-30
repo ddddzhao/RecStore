@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+# Copyright (c) 2025 RecStore Choimoe. All rights reserved.
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
+#
+# Enhanced by Choimoe:
+# - Supports loading an arbitrary number of days from the dataset
+# - Falls back to using the last available day as validation set when insufficient data
 
 import argparse
 import os
@@ -96,16 +101,52 @@ def _get_in_memory_dataloader(
         ]
     # criteo_1tb code path uses below two conditionals
     elif stage == "train":
+        available_days = []
+        for i in range(24):
+            day_files = [
+                os.path.join(dir_path, f"day_{i}_dense.npy"),
+                os.path.join(dir_path, f"day_{i}_{sparse_part}"),
+                os.path.join(dir_path, f"day_{i}_labels.npy")
+            ]
+            if all(os.path.exists(f) for f in day_files):
+                available_days.append(i)
+        
+        if not available_days:
+            raise FileNotFoundError(f"No complete day files found in {dir_path}")
+        
+        if len(available_days) == 1:
+            train_days = available_days
+        else:
+            train_days = available_days[:-1]
+        
         stage_files: List[List[str]] = [
-            [os.path.join(dir_path, f"day_{i}_dense.npy") for i in range(DAYS - 1)],
-            [os.path.join(dir_path, f"day_{i}_{sparse_part}") for i in range(DAYS - 1)],
-            [os.path.join(dir_path, f"day_{i}_labels.npy") for i in range(DAYS - 1)],
+            [os.path.join(dir_path, f"day_{i}_dense.npy") for i in train_days],
+            [os.path.join(dir_path, f"day_{i}_{sparse_part}") for i in train_days],
+            [os.path.join(dir_path, f"day_{i}_labels.npy") for i in train_days],
         ]
     elif stage in ["val", "test"]:
+        available_days = []
+        for i in range(24):
+            day_files = [
+                os.path.join(dir_path, f"day_{i}_dense.npy"),
+                os.path.join(dir_path, f"day_{i}_{sparse_part}"),
+                os.path.join(dir_path, f"day_{i}_labels.npy")
+            ]
+            if all(os.path.exists(f) for f in day_files):
+                available_days.append(i)
+        
+        if not available_days:
+            raise FileNotFoundError(f"No complete day files found in {dir_path}")
+        
+        if len(available_days) == 1:
+            val_day = available_days[0]
+        else:
+            val_day = available_days[-1]
+        
         stage_files: List[List[str]] = [
-            [os.path.join(dir_path, f"day_{DAYS-1}_dense.npy")],
-            [os.path.join(dir_path, f"day_{DAYS-1}_{sparse_part}")],
-            [os.path.join(dir_path, f"day_{DAYS-1}_labels.npy")],
+            [os.path.join(dir_path, f"day_{val_day}_dense.npy")],
+            [os.path.join(dir_path, f"day_{val_day}_{sparse_part}")],
+            [os.path.join(dir_path, f"day_{val_day}_labels.npy")],
         ]
     if stage in ["val", "test"] and args.test_batch_size is not None:
         batch_size = args.test_batch_size
@@ -124,8 +165,8 @@ def _get_in_memory_dataloader(
             shuffle_training_set_random_seed=args.seed,
             mmap_mode=args.mmap_mode,
             hashes=(
-                args.num_embeddings_per_feature
-                if args.num_embeddings is None
+                [int(x) for x in args.num_embeddings_per_feature.split(",")]
+                if args.num_embeddings_per_feature is not None
                 else ([args.num_embeddings] * CAT_FEATURE_COUNT)
             ),
         ),
