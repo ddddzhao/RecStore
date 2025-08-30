@@ -190,14 +190,8 @@ class TestRecStoreEmbeddingBagCollection(unittest.TestCase):
         self.assertIsInstance(result, KeyedTensor)
         self.assertEqual(result.keys(), ["test_feature"])
         
-        if self.use_torchrec:
-            # TorchRec版本：输出形状是(2, 16)，length_per_key是[16]
-            self.assertEqual(result.values().shape, (2, 16))
-            self.assertEqual(result.length_per_key(), [16])
-        else:
-            # RecStore版本：输出形状是(2, 16)，length_per_key是[2]
-            self.assertEqual(result.values().shape, (2, 16))
-            self.assertEqual(result.length_per_key(), [2])
+        self.assertEqual(result.values().shape, (2, 16))
+        self.assertEqual(result.length_per_key(), [16])
         
         print(f"✓ 基本前向传播测试通过，输出形状: {result.values().shape}")
 
@@ -220,13 +214,8 @@ class TestRecStoreEmbeddingBagCollection(unittest.TestCase):
         self.assertIsInstance(result, KeyedTensor)
         self.assertEqual(result.keys(), ["user_id", "item_id", "category_id"])
         
-        if self.use_torchrec:
-            # TorchRec版本：输出形状是(1, 48)，length_per_key是[16, 16, 16]
-            self.assertEqual(result.values().shape, (1, 48))
-            self.assertEqual(result.length_per_key(), [16, 16, 16])
-        else:
-            self.assertEqual(result.values().shape, (1, 48))
-            self.assertEqual(result.length_per_key(), [1, 1, 1])
+        self.assertEqual(result.values().shape, (1, 48))
+        self.assertEqual(result.length_per_key(), [16, 16, 16])
         
         print(f"✓ 多表前向传播测试通过，输出形状: {result.values().shape}")
 
@@ -249,14 +238,8 @@ class TestRecStoreEmbeddingBagCollection(unittest.TestCase):
         self.assertIsInstance(result, KeyedTensor)
         self.assertEqual(result.keys(), ["test_feature"])
         
-        if self.use_torchrec:
-            # TorchRec版本：输出形状是(1, 16)，length_per_key是[16]
-            self.assertEqual(result.values().shape, (1, 16))
-            self.assertEqual(result.length_per_key(), [16])
-        else:
-            # RecStore版本：输出形状是(1, 16)，length_per_key是[1]
-            self.assertEqual(result.values().shape, (1, 16))
-            self.assertEqual(result.length_per_key(), [1])
+        self.assertEqual(result.values().shape, (1, 16))
+        self.assertEqual(result.length_per_key(), [16])
         
         print("✓ 空批次前向传播测试通过")
 
