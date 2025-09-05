@@ -41,6 +41,7 @@ RECSTORE_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../.
 DLRM_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '../'))
 if RECSTORE_PATH not in sys.path:
     sys.path.insert(0, RECSTORE_PATH)
+if DLRM_PATH not in sys.path:
     sys.path.insert(0, DLRM_PATH)
 
 from dlrm import DLRM, DLRM_DCN, DLRM_Projection, DLRMTrain
