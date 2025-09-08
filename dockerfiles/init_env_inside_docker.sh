@@ -180,15 +180,10 @@ step_HugeCTR() {
     mkdir -p _build
     cd _build
     cmake -DCMAKE_BUILD_TYPE=Release \
-        -DBUILD_TESTING=OFF \
-        -DENABLE_SAMPLES=OFF \
-        -DSM=${GPU_ARCH} \
-        -DCMAKE_INSTALL_PREFIX=/usr/local/hugectr \
-        -DPARQUET_LIB_PATH=/usr/lib/x86_64-linux-gnu/libparquet.so \
-        -DPARQUET_INCLUDE_DIR=/usr/include \
         ${CMAKE_REQUIRE} \
         ..
     make embedding -j20
+    sudo mkdir -p /usr/local/hugectr/lib/
     sudo find . -name "*.so" -exec cp {} /usr/local/hugectr/lib/ \;
     make clean
 }
@@ -221,10 +216,10 @@ step_set_coredump() {
     source set_coredump.sh
 }
 
-step_dgl() {
-    cd ${PROJECT_PATH}/src/kg/kg
-    bash install_dgl.sh
-}
+# step_dgl() {
+#     cd ${PROJECT_PATH}/src/kg/kg
+#     bash install_dgl.sh
+# }
 
 step_libibverbs() {
     cd /usr/lib/x86_64-linux-gnu
