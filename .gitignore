@@ -21,6 +21,7 @@ datasets/
 *qdrep
 .cache
 .vscode-server
+*.code-workspace
 *.nsys-rep
 test.pt
 src/framework_adapters/torch/kg/python/data/

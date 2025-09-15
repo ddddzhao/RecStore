@@ -38,6 +38,11 @@ if [ ! -f "$day_0_file" ]; then
     exit 1
 fi
 
+DLRM_PATH="$(pwd)"
+VENV_BASH="${DLRM_PATH}/dlrm_venv/bin/activate"
+
+source ${VENV_BASH}
+
 mkdir -p "$output_dir"
 
 echo "Step 1: Converting TSV to numpy format..."
