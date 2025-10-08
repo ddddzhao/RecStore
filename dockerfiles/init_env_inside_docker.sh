@@ -117,19 +117,27 @@ step_cityhash() {
 # sudo sed -i "s@http://.*security.ubuntu.com@https://mirrors.tuna.tsinghua.edu.cn@g" /etc/apt/sources.list
 # sudo -E apt-get update
 
-# cd third_party/spdk
-# sudo PATH=$PATH which pip3
+step_spdk() {
+    sudo apt-get install libfuse-dev kmod
+    cd ${PROJECT_PATH}/third_party/spdk
+    rm -rf build
+    sudo PATH=$PATH which pip3
+    sudo apt-get update --fix-missing
 
-# # if failed, sudo su, and execute in root;
-# # the key is that which pip3 == /opt/bin/pip3
-# sudo -E PATH=$PATH scripts/pkgdep.sh --all
-# # exit sudo su
+    # # if failed, sudo su, and execute in root;
+    # # the key is that which pip3 == /opt/bin/pip3
+    export GO111MODULE=on
+    export GOPROXY=https://goproxy.cn,direct
+    sudo -E PATH=$PATH scripts/pkgdep.sh --all
+    # # exit sudo su
 
-# ./configure
-# sudo make clean
-# make -j20
-# sudo make install
-# # make clean
+    ./configure
+    sudo make clean
+    export PATH=$PATH:/var/spdk/dependencies/pip/bin
+    sudo pip3 install pyelftools
+    make -j20
+    sudo env "PATH=/var/spdk/dependencies/pip/bin:$PATH" make install
+}
 # #############################SPDK#############################
 
 # sudo rm /opt/conda/lib/libtinfo.so.6
