@@ -37,6 +37,8 @@ from torchrec.optim.keyed import CombinedOptimizer, KeyedOptimizerWrapper
 from torchrec.optim.optimizers import in_backward_optimizer_filter
 from tqdm import tqdm
 
+from torch.profiler import profile, record_function, ProfilerActivity
+
 RECSTORE_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../src'))
 DLRM_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '../'))
 if RECSTORE_PATH not in sys.path:
@@ -370,68 +372,80 @@ def main(argv: List[str]) -> None:
     criterion = torch.nn.BCEWithLogitsLoss()
     auroc = metrics.AUROC(task="binary")
     
-    model.train()
-    for epoch in range(args.epochs):
-        print(f"Epoch {epoch + 1}/{args.epochs}")
-        
-        train_loss = 0.0
-        train_auroc = 0.0
-        num_batches = 0
-        
-        for batch_idx, batch in enumerate(tqdm(train_dataloader, desc="Training")):
-            dense_features = batch[0].to(device)
-            sparse_features = batch[1].to(device)
-            labels = batch[2].to(device)
+    from torch.profiler import profile, ProfilerActivity, schedule
+    from torch.profiler import tensorboard_trace_handler
+    
+    with profile(
+        activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+        schedule=schedule(wait=1, warmup=1, active=3, repeat=1),
+        on_trace_ready=tensorboard_trace_handler("./logs_fake_recstore") if dist.get_rank() == 0 else None,
+        record_shapes=True,
+        profile_memory=True,
+        with_stack=True
+    ) as prof:
+        for epoch in range(args.epochs):
+            model.train()
+            print(f"Epoch {epoch + 1}/{args.epochs}")
             
-            optimizer.zero_grad()
-            outputs = model(dense_features, sparse_features)
-            loss = criterion(outputs, labels.float())
+            train_loss = 0.0
+            train_auroc = 0.0
+            num_batches = 0
             
-            loss.backward()
-            optimizer.step()
-            
-            train_loss += loss.item()
-            auroc_score = auroc(outputs.squeeze(), labels)
-            train_auroc += auroc_score.item()
-            num_batches += 1
-            
-            if batch_idx % 100 == 0:
-                print(f"Batch {batch_idx}: Loss = {loss.item():.4f}, AUROC = {auroc_score.item():.4f}")
-        
-        avg_train_loss = train_loss / num_batches
-        avg_train_auroc = train_auroc / num_batches
-        
-        print(f"Epoch {epoch + 1} - Training Loss: {avg_train_loss:.4f}, Training AUROC: {avg_train_auroc:.4f}")
-        
-        model.eval()
-        val_loss = 0.0
-        val_auroc = 0.0
-        val_num_batches = 0
-        
-        with torch.no_grad():
-            for batch in tqdm(val_dataloader, desc="Validation"):
+            for batch_idx, batch in enumerate(tqdm(train_dataloader, desc="Training")):
                 dense_features = batch[0].to(device)
                 sparse_features = batch[1].to(device)
                 labels = batch[2].to(device)
                 
+                optimizer.zero_grad()
                 outputs = model(dense_features, sparse_features)
                 loss = criterion(outputs, labels.float())
                 
-                val_loss += loss.item()
+                loss.backward()
+                optimizer.step()
+                prof.step()
+                
+                train_loss += loss.item()
                 auroc_score = auroc(outputs.squeeze(), labels)
-                val_auroc += auroc_score.item()
-                val_num_batches += 1
-        
-        avg_val_loss = val_loss / val_num_batches
-        avg_val_auroc = val_auroc / val_num_batches
-        
-        print(f"Epoch {epoch + 1} - Validation Loss: {avg_val_loss:.4f}, Validation AUROC: {avg_val_auroc:.4f}")
-        
-        model.train()
-        auroc.reset()
+                train_auroc += auroc_score.item()
+                num_batches += 1
+                
+                if batch_idx % 100 == 0:
+                    print(f"Batch {batch_idx}: Loss = {loss.item():.4f}, AUROC = {auroc_score.item():.4f}")
+            
+            avg_train_loss = train_loss / num_batches
+            avg_train_auroc = train_auroc / num_batches
+            
+            print(f"Epoch {epoch + 1} - Training Loss: {avg_train_loss:.4f}, Training AUROC: {avg_train_auroc:.4f}")
+            
+            model.eval()
+            val_loss = 0.0
+            val_auroc = 0.0
+            val_num_batches = 0
+            
+            with torch.no_grad():
+                for batch in tqdm(val_dataloader, desc="Validation"):
+                    dense_features = batch[0].to(device)
+                    sparse_features = batch[1].to(device)
+                    labels = batch[2].to(device)
+                    
+                    outputs = model(dense_features, sparse_features)
+                    loss = criterion(outputs, labels.float())
+                    
+                    val_loss += loss.item()
+                    auroc_score = auroc(outputs.squeeze(), labels)
+                    val_auroc += auroc_score.item()
+                    val_num_batches += 1
+            
+            avg_val_loss = val_loss / val_num_batches
+            avg_val_auroc = val_auroc / val_num_batches
+            
+            print(f"Epoch {epoch + 1} - Validation Loss: {avg_val_loss:.4f}, Validation AUROC: {avg_val_auroc:.4f}")
+            
+            model.train()
+            auroc.reset()
     
-    print("Training completed!")
-    
+        print("Training completed!")
+
     dist.destroy_process_group()
 
 

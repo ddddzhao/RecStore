@@ -197,3 +197,12 @@ echo "Start Time:               $(date -d "@$(echo $start_time | cut -d. -f1)" '
 echo "End Time:                 $(date -d "@$(echo $end_time | cut -d. -f1)" '+%Y-%m-%d %H:%M:%S')"
 echo "Total Duration:           $(printf "%02d" $hours):$(printf "%02d" $minutes):$(printf "%02d" $seconds)"
 echo "=========================================="
+
+
+total_seconds=$(echo "$end_time - $start_time" | bc)
+uid="dlrm_${dataset_size}_${mode}_${epochs}_gpu"
+echo "Uploading training duration: $total_seconds seconds"
+python report_uploader.py dlrm_training_metrics "$uid" training_duration_seconds "$total_seconds"
+if [ $? -ne 0 ]; then
+    echo "Warning: Data upload failed. Continuing with summary output."
+fi
