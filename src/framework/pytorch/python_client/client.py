@@ -53,3 +53,17 @@ class RecstoreClient:
             raise ValueError("keys and values must have the same number of entries")
 
         self.ops.emb_write(keys, values)
+
+    # ---- Async Prefetch APIs ----
+    def emb_prefetch(self, keys: torch.Tensor) -> int:
+        if keys.dtype != torch.int64:
+            raise TypeError(f"keys tensor must be of dtype torch.int64, but got {keys.dtype}")
+        pid = self.ops.emb_prefetch(keys)
+        return int(pid)
+
+    def emb_wait_result(self, prefetch_id: int, embedding_dim: int) -> torch.Tensor:
+        if not isinstance(prefetch_id, int) or prefetch_id <= 0:
+            raise ValueError("prefetch_id must be a positive int")
+        if not isinstance(embedding_dim, int) or embedding_dim <= 0:
+            raise ValueError("embedding_dim must be a positive int")
+        return self.ops.emb_wait_result(int(prefetch_id), int(embedding_dim))

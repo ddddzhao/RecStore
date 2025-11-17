@@ -212,6 +212,23 @@ class RecStoreClient:
             raise RuntimeError(f"Tensor '{name}' has not been initialized.")
         self.ops.emb_write(ids, data)
 
+    # ---- Prefetch APIs ----
+    def prefetch(self, ids: torch.Tensor) -> int:
+        """Initiate an async prefetch for given ids. Returns a handle (int).
+
+        The returned handle should be consumed soon (same batch) to avoid cache pressure.
+        """
+        if ids.dtype != torch.int64:
+            ids = ids.to(dtype=torch.int64)
+        return int(self.ops.emb_prefetch(ids))
+
+    def wait_and_get(self, prefetch_id: int, embedding_dim: int, device: torch.device = torch.device("cpu")) -> torch.Tensor:
+        """Block until prefetch completes and return embeddings of shape [N, D]."""
+        out = self.ops.emb_wait_result(int(prefetch_id), int(embedding_dim))
+        if device.type == "cuda":
+            out = out.to(device)
+        return out
+
     # def update(self, name: str, ids: torch.Tensor, grads: torch.Tensor):
     #     """
     #     Pushes gradients to update the given IDs of a named tensor.
