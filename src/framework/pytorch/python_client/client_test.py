@@ -35,6 +35,24 @@ read_values_unseen = client.emb_read(keys_to_read, embedding_dim)
 assert read_values_unseen.shape == (2, embedding_dim)
 assert torch.all(read_values_unseen == 0), "Unseen keys should return zero vectors"
 print("Read for unseen keys successful, returned zero vectors as expected.")
+
+
+print("\n--- Test 3: Async Prefetch Read ---")
+prefetch_keys = torch.tensor([2001, 2002, 2003, 2004], dtype=torch.int64)
+prefetch_vals = torch.randn(4, embedding_dim, dtype=torch.float32)
+client.emb_write(prefetch_keys, prefetch_vals)
+
+pid = client.emb_prefetch(prefetch_keys)
+print(f"Issued prefetch id: {pid}")
+prefetched = client.emb_wait_result(pid, embedding_dim)
+
+print(f"Prefetched embeddings for keys: {prefetch_keys.tolist()}")
+print(f"Prefetch shape: {prefetched.shape}, expected shape: {(4, embedding_dim)}")
+print(f"Prefetched values(first 3): {prefetched.tolist()[:3]}")
+print(f"Expected values(first 3): {prefetch_vals.tolist()[:3]}")
+assert prefetched.shape == (4, embedding_dim), "Prefetch result shape mismatch"
+assert torch.allclose(prefetched, prefetch_vals), "Prefetch values mismatch"
+print("Async prefetch successful and values verified.")
 exit(0)
 
 # print("\n--- Test 3: Update Operation ---")

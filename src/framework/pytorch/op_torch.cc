@@ -2,6 +2,7 @@
 #include "framework/op.h"
 #include "base/tensor.h"
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <string>
 
@@ -117,6 +118,57 @@ torch::Tensor emb_read_torch(const torch::Tensor& keys, int64_t embedding_dim) {
   return values;
 }
 
+// Async prefetch: returns a unique prefetch id (uint64_t)
+int64_t emb_prefetch_torch(const torch::Tensor& keys) {
+  RECSTORE_LOG(2, "[INFO] emb_prefetch_torch called");
+  TORCH_CHECK(keys.dim() == 1, "Keys tensor must be 1-dimensional");
+  TORCH_CHECK(keys.scalar_type() == torch::kInt64,
+              "Keys tensor must have dtype int64");
+  TORCH_CHECK(keys.is_contiguous(), "Keys tensor must be contiguous");
+
+  auto op = GetKVClientOp();
+  torch::Tensor cpu_keys = keys;
+  if (keys.is_cuda()) {
+    cpu_keys = keys.cpu();
+  }
+  base::RecTensor rec_keys = ToRecTensor(cpu_keys, base::DataType::UINT64);
+  // Dummy values tensor (unused by backend prefetch implementation)
+  auto dummy_vals = torch::empty({0, 0}, keys.options().dtype(torch::kFloat32));
+  base::RecTensor rec_vals = ToRecTensor(dummy_vals, base::DataType::FLOAT32);
+  uint64_t pid = op->EmbPrefetch(rec_keys, rec_vals);
+  return static_cast<int64_t>(pid);
+}
+
+// Wait for prefetch and return result tensor [N, embedding_dim] on CPU
+torch::Tensor emb_wait_result_torch(int64_t prefetch_id, int64_t embedding_dim) {
+  RECSTORE_LOG(2, "[INFO] emb_wait_result_torch called: pid=" << prefetch_id
+                         << ", dim=" << embedding_dim);
+  TORCH_CHECK(embedding_dim > 0, "Embedding dimension must be positive");
+  auto op = GetKVClientOp();
+  op->WaitForPrefetch(static_cast<uint64_t>(prefetch_id));
+  std::vector<std::vector<float>> vecs;
+  op->GetPretchResult(static_cast<uint64_t>(prefetch_id), &vecs);
+  const int64_t L = static_cast<int64_t>(vecs.size());
+  auto options = torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCPU);
+  auto out = torch::empty({L, embedding_dim}, options);
+  if (L > 0) {
+    float* dst = out.data_ptr<float>();
+    for (int64_t i = 0; i < L; ++i) {
+      const auto& row = vecs[i];
+      if (!row.empty()) {
+        const int64_t copy_d = std::min<int64_t>(embedding_dim, static_cast<int64_t>(row.size()));
+        std::memcpy(dst + i * embedding_dim, row.data(), sizeof(float) * copy_d);
+        if (copy_d < embedding_dim) {
+          std::memset(dst + i * embedding_dim + copy_d, 0, sizeof(float) * (embedding_dim - copy_d));
+        }
+      } else {
+        std::memset(dst + i * embedding_dim, 0, sizeof(float) * embedding_dim);
+      }
+    }
+  }
+  return out;
+}
+
 void emb_update_torch(const torch::Tensor& keys, const torch::Tensor& grads) {
   throw std::runtime_error(
       "emb_update_torch is deprecated. Use the Python-based sparse optimizer.");
@@ -196,6 +248,8 @@ TORCH_LIBRARY(recstore_ops, m) {
   m.def("emb_read", emb_read_torch);
   m.def("emb_update", emb_update_torch);
   m.def("emb_write", emb_write_torch);
+  m.def("emb_prefetch", emb_prefetch_torch);
+  m.def("emb_wait_result", emb_wait_result_torch);
 }
 
 } // namespace framework
