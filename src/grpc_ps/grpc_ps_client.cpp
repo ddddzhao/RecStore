@@ -428,7 +428,9 @@ int GRPCParameterClient::PutParameter(const base::ConstArray<uint64_t>& keys,
                                       const std::vector<std::vector<float>>& values) {
   std::vector<uint64_t> key_vec(keys.Data(), keys.Data() + keys.Size());
   bool success = PutParameter(key_vec, values);
-  std::cout<<success<<std::endl;
+  if (!success) {
+    LOG(ERROR) << "PutParameter batch failed";
+  }
   return success ? 1 : 0;
 }
 

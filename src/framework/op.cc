@@ -24,7 +24,7 @@ static int get_log_level() {
   static int level = []() {
     const char* env = std::getenv("RECSTORE_LOG_LEVEL");
     if (!env)
-      return 2; // Default INFO
+      return 1; // Default INFO
     return std::atoi(env);
   }();
   return level;
