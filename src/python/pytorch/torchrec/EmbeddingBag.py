@@ -108,6 +108,13 @@ class RecStoreEmbeddingBagCollection(torch.nn.Module):
                 self._embedding_dims.append(c.embedding_dim)
 
         self._trace = []
+        self._prefetch_handles: Dict[str, int] = {}
+        # Prefetch performance stats
+        self._prefetch_issue_ts: Dict[int, float] = {}  # handle -> issue time
+        self._prefetch_sizes: Dict[int, int] = {}       # handle -> number of ids
+        self._prefetch_wait_latencies: List[float] = []
+        self._prefetch_issue_latencies: List[float] = []  # currently producer-side if provided
+        self._prefetch_total_ids: int = 0
 
         for config in self._embedding_bag_configs:
             self.kv_client.init_data(
@@ -122,6 +129,31 @@ class RecStoreEmbeddingBagCollection(torch.nn.Module):
     def reset_trace(self):
         self._trace = []
 
+    def set_prefetch_handles(self, handles: Dict[str, Any]):
+        """Set prefetch handles plus optional stats metadata.
+
+        Accepts: { feature_key: handle } OR { feature_key: (handle, num_ids, issue_ts) }
+        """
+        import time
+        parsed: Dict[str, int] = {}
+        now = time.time()
+        for k, v in handles.items():
+            if isinstance(v, tuple):
+                if len(v) == 3:
+                    h, num_ids, t_issue = v
+                elif len(v) == 2:
+                    h, num_ids = v; t_issue = now
+                else:
+                    h = v[0]; num_ids = 0; t_issue = now
+                parsed[k] = int(h)
+                self._prefetch_issue_ts[int(h)] = float(t_issue)
+                self._prefetch_sizes[int(h)] = int(num_ids)
+                self._prefetch_total_ids += int(num_ids)
+            else:
+                parsed[k] = int(v)
+                # Unknown size, leave stats partial
+        self._prefetch_handles = parsed
+
     def forward(self, features: KeyedJaggedTensor) -> KeyedTensor:
         pooled_embs_list = []
         
@@ -135,7 +167,27 @@ class RecStoreEmbeddingBagCollection(torch.nn.Module):
                 config = next(c for c in self._embedding_bag_configs if key in c.feature_names)
                 pooled_embs = torch.zeros(len(lengths), config.embedding_dim, device=features.device(), dtype=torch.float32)
             else:
-                all_embeddings = self.kv_client.pull(name=config_name, ids=values)
+                # Prefer prefetched embeddings if provided for this feature
+                if key in self._prefetch_handles:
+                    import time
+                    handle = self._prefetch_handles.pop(key)
+                    config = next(c for c in self._embedding_bag_configs if key in c.feature_names)
+                    t_wait_start = time.time()
+                    all_embeddings = self.kv_client.wait_and_get(handle, config.embedding_dim, device=values.device)
+                    t_wait_end = time.time()
+                    if handle in self._prefetch_issue_ts:
+                        wait_latency = t_wait_end - t_wait_start
+                        issue_latency = t_wait_start - self._prefetch_issue_ts.get(handle, t_wait_start)
+                        self._prefetch_wait_latencies.append(wait_latency)
+                        self._prefetch_issue_latencies.append(issue_latency)
+                    # Fallback: if prefetch result size mismatches, do sync pull
+                    if all_embeddings.size(0) != values.numel():
+                        logging.warning(
+                            f"[EBC] Prefetch result size mismatch for feature '{key}': got {all_embeddings.size(0)}, expected {values.numel()}, falling back to pull."
+                        )
+                        all_embeddings = self.kv_client.pull(name=config_name, ids=values)
+                else:
+                    all_embeddings = self.kv_client.pull(name=config_name, ids=values)
                 all_embeddings.requires_grad_()
 
                 def grad_hook(grad, name=config_name, ids=values):
@@ -177,6 +229,34 @@ class RecStoreEmbeddingBagCollection(torch.nn.Module):
             values=concatenated_embs,
             length_per_key=length_per_key,
         )
+
+    def report_prefetch_stats(self, reset: bool = True) -> Dict[str, float]:
+        import math
+        n = len(self._prefetch_wait_latencies)
+        if n == 0:
+            stats = {
+                "batches_prefetched": 0,
+                "avg_wait_ms": 0.0,
+                "avg_issue_to_wait_ms": 0.0,
+                "total_prefetched_ids": self._prefetch_total_ids,
+            }
+        else:
+            avg_wait = sum(self._prefetch_wait_latencies) / n
+            avg_issue = sum(self._prefetch_issue_latencies) / n if self._prefetch_issue_latencies else 0.0
+            stats = {
+                "batches_prefetched": n,
+                "avg_wait_ms": avg_wait * 1000.0,
+                "avg_issue_to_wait_ms": avg_issue * 1000.0,
+                "total_prefetched_ids": self._prefetch_total_ids,
+                "embeddings_per_sec_during_wait": (self._prefetch_total_ids / sum(self._prefetch_wait_latencies)) if sum(self._prefetch_wait_latencies) > 0 else 0.0,
+            }
+        if reset:
+            self._prefetch_issue_ts.clear()
+            self._prefetch_sizes.clear()
+            self._prefetch_wait_latencies.clear()
+            self._prefetch_issue_latencies.clear()
+            self._prefetch_total_ids = 0
+        return stats
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(tables={self.feature_keys})"

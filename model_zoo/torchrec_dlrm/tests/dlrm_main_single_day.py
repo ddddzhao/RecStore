@@ -228,6 +228,17 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
         default=0.8,
         help="Ratio of data to use for training (rest for validation) in single day mode",
     )
+    parser.add_argument(
+        "--enable_prefetch",
+        action="store_true",
+        help="Enable async embedding prefetch to overlap I/O and compute",
+    )
+    parser.add_argument(
+        "--prefetch_depth",
+        type=int,
+        default=2,
+        help="Prefetch queue depth (batches)",
+    )
     
     args = parser.parse_args(argv)
     
@@ -351,6 +362,13 @@ def main(argv: List[str]) -> None:
         for feature_idx, feature_name in enumerate(DEFAULT_CAT_NAMES)
     ]
     embedding_bag_collection = RecStoreEmbeddingBagCollection(eb_configs)
+    prefetch_enabled = args.enable_prefetch
+    if prefetch_enabled:
+        try:
+            from .prefetcher import PrefetchingIterator  # relative import when run as module
+        except Exception:
+            from prefetcher import PrefetchingIterator
+        train_dataloader = PrefetchingIterator(train_dataloader, embedding_bag_collection, prefetch_count=args.prefetch_depth)
     
     if args.interaction_type == InteractionType.DCN:
         model = DLRM_DCN(
@@ -391,6 +409,9 @@ def main(argv: List[str]) -> None:
         with_stack=True
     ) as prof:
         for epoch in range(args.epochs):
+            # Restart prefetch iterator each epoch to avoid blocking after exhaustion
+            if prefetch_enabled and hasattr(train_dataloader, "restart"):
+                train_dataloader.restart()
             model.train()
             print(f"Epoch {epoch + 1}/{args.epochs}")
             
@@ -399,9 +420,15 @@ def main(argv: List[str]) -> None:
             num_batches = 0
             
             for batch_idx, batch in enumerate(tqdm(train_dataloader, desc="Training")):
-                dense_features = batch[0].to(device)
-                sparse_features = batch[1].to(device)
-                labels = batch[2].to(device)
+                if prefetch_enabled and len(batch) == 4:
+                    dense_features, sparse_features, labels, handles = batch
+                    # deliver handles to EBC so it consumes prefetched results
+                    embedding_bag_collection.set_prefetch_handles(handles)
+                else:
+                    dense_features, sparse_features, labels = batch
+                dense_features = dense_features.to(device)
+                sparse_features = sparse_features.to(device)
+                labels = labels.to(device)
                 
                 optimizer.zero_grad()
                 outputs = model(dense_features, sparse_features)
@@ -450,6 +477,9 @@ def main(argv: List[str]) -> None:
             
             model.train()
             auroc.reset()
+            if prefetch_enabled:
+                stats = embedding_bag_collection.report_prefetch_stats(reset=True)
+                print(f"Prefetch Stats (Epoch {epoch + 1}): batches={stats['batches_prefetched']}, avg_wait_ms={stats['avg_wait_ms']:.3f}, avg_issue_to_wait_ms={stats['avg_issue_to_wait_ms']:.3f}, total_ids={stats['total_prefetched_ids']}, embeddings_per_sec_during_wait={stats['embeddings_per_sec_during_wait']:.1f}")
     
         print("Training completed!")
 
