@@ -15,6 +15,7 @@ DEFAULT_ENABLE_PREFETCH=true
 DEFAULT_PREFETCH_DEPTH=2
 DEFAULT_FUSE_EMB=true
 DEFAULT_FUSE_K=30
+DEFAULT_TRACE_FILE=""
 
 DLRM_PATH="$(pwd)"
 VENV_BASH="${DLRM_PATH}/dlrm_venv/bin/activate"
@@ -31,6 +32,7 @@ enable_prefetch=$DEFAULT_ENABLE_PREFETCH
 prefetch_depth=$DEFAULT_PREFETCH_DEPTH
 fuse_emb_tables=$DEFAULT_FUSE_EMB
 fuse_k=$DEFAULT_FUSE_K
+trace_file=$DEFAULT_TRACE_FILE
 
 show_help() {
     echo "DLRM Training Script with Performance Metrics"
@@ -59,6 +61,7 @@ show_help() {
     echo "  --enable-fuse-emb           Enable embedding table fusion (default: $DEFAULT_FUSE_EMB)"
     echo "  --disable-fuse-emb          Disable embedding table fusion"
     echo "  --fuse-k K                  Bit prefix shift k (default: $DEFAULT_FUSE_K)"
+    echo "  --trace-file PATH           Chrome trace output file (optional)"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -161,6 +164,16 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             ;;
+        --trace-file)
+            if [[ -n "$2" && "$2" != -* ]]; then
+                trace_file="$2"
+                shift 2
+            else
+                echo "Error: Argument for $1 is missing" >&2
+                show_help
+                exit 1
+            fi
+            ;;
         *)
             echo "Error: Unknown option $1" >&2
             show_help
@@ -193,6 +206,9 @@ echo "Enable Prefetch:         $enable_prefetch"
 echo "Prefetch Depth:          $prefetch_depth"
 echo "Fusion Enabled:          $fuse_emb_tables"
 echo "Fusion k (shift):        $fuse_k"
+if [ -n "$trace_file" ]; then
+echo "Trace File:              $trace_file"
+fi
 fi
 echo "=========================================="
 
@@ -237,6 +253,9 @@ if [ "$mode" = "RecStore" ]; then
         extra_args+=(--no-fuse-emb-tables)
     fi
     extra_args+=(--fuse-k "$fuse_k")
+    if [ -n "$trace_file" ]; then
+        extra_args+=(--trace_file "$trace_file")
+    fi
 fi
 torchrun --nnodes 1 \
     --nproc_per_node 1 \
