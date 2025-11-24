@@ -29,18 +29,21 @@ class PrefetchingIterator:
             while not self._stop:
                 batch = next(self._iter)
                 dense, sparse, labels = batch
-                # For each feature, prefetch its ids separately to match EBC behavior
-                handles: Dict[str, int] = {}
-                import time
-                batch_issue_ts = time.time()
-                for key in sparse.keys():
-                    kjt = sparse[key]
-                    ids = kjt.values()
-                    if ids.numel() == 0:
-                        continue
-                    h = self._kv.prefetch(ids)
-                    handles[key] = (h, int(ids.numel()), batch_issue_ts)
-                self._queue.put((dense, sparse, labels, handles))
+                if self._ebc._enable_fusion and self._ebc._master_config is not None:
+                    self._ebc.issue_fused_prefetch(sparse)
+                    self._queue.put((dense, sparse, labels, {}))
+                else:
+                    handles: Dict[str, int] = {}
+                    import time
+                    batch_issue_ts = time.time()
+                    for key in sparse.keys():
+                        kjt = sparse[key]
+                        ids = kjt.values()
+                        if ids.numel() == 0:
+                            continue
+                        h = self._kv.prefetch(ids)
+                        handles[key] = (h, int(ids.numel()), batch_issue_ts)
+                    self._queue.put((dense, sparse, labels, handles))
         except StopIteration:
             self._exhausted = True
             self._queue.put(None)
