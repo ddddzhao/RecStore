@@ -514,18 +514,83 @@ void GRPCParameterClient::Command(recstore::PSCommand command) {
   }
 }
 
-uint64_t GRPCParameterClient::EmbWriteAsync(const base::RecTensor& keys, const base::RecTensor& values) {
-  LOG(ERROR) << "EmbWriteAsync not implemented!";
-  return 0;
+uint64_t GRPCParameterClient::EmbWriteAsync(const base::ConstArray<uint64_t>& keys, const std::vector<std::vector<float>>&  values) {
+  uint64_t prewrite_id = next_prewrite_id_++;  
+  int request_num = (keys.Size() + MAX_PARAMETER_BATCH - 1) / MAX_PARAMETER_BATCH;
+
+  struct PrewriteBatch pb(request_num);
+
+  for (int start = 0, index = 0; start < keys.Size(); start += MAX_PARAMETER_BATCH, ++index) {
+    int key_size = std::min((int)(keys.Size() - start), MAX_PARAMETER_BATCH);
+    pb.key_sizes_[index] = key_size;
+    auto &status = pb.status_[index];
+    if (!pb.contexts_[index]) {
+      pb.contexts_[index] = std::make_unique<grpc::ClientContext>();
+    }
+    auto &request = pb.requests_[index];
+    auto &response = pb.responses_[index];
+
+    // 将键值对打包
+    ParameterCompressor compressor;
+    std::vector<std::string> blocks;
+    for (int i = start; i < start + key_size; i++) {
+      auto each_key = keys[i];
+      auto &embedding = values[i];
+      ParameterPack parameter_pack;
+      parameter_pack.key = each_key;
+      parameter_pack.dim = embedding.size();
+      parameter_pack.emb_data = embedding.data();
+      compressor.AddItem(parameter_pack, &blocks);
+    }
+    compressor.ToBlock(&blocks);
+    CHECK_EQ(blocks.size(), 1);
+
+    request.mutable_parameter_value()->swap(blocks[0]);
+
+    // 发送异步请求
+    pb.response_readers_.emplace_back(
+      stubs_[0]->AsyncPutParameter(pb.contexts_[index].get(), request, pb.cqs_.get()));
+
+    // 异步调用，设置回调
+    auto &rpc = pb.response_readers_.back();
+    rpc->Finish(&response, &status, reinterpret_cast<void *>(index));
+  }
+
+  // 将批次信息存储到 prewrite_batches_ 中
+  prewrite_batches_.emplace(prewrite_id, std::move(pb));
+  return prewrite_id;
 }
 
 bool GRPCParameterClient::IsWriteDone(uint64_t write_id) {
   LOG(ERROR) << "IsWriteDone not implemented!";
-  return true;
+  auto it = prewrite_batches_.find(write_id);
+  if (it == prewrite_batches_.end()) {
+    LOG(ERROR) << "Invalid prewrite_id: " << write_id;
+    return false;
+  }
+  auto& pb = it->second;
+  return (pb.completed_count_ == pb.batch_size_);
 }
 
 void GRPCParameterClient::WaitForWrite(uint64_t write_id) {
-  LOG(ERROR) << "WaitForWrite not implemented!";
+  auto it = prewrite_batches_.find(write_id);
+  if (it == prewrite_batches_.end()) {
+    LOG(ERROR) << "Invalid prewrite_id: " << write_id;
+    return;
+  }
+  auto& pb = it->second;
+  while (pb.completed_count_ < pb.batch_size_) {
+    void* got_tag = nullptr;
+    bool ok = false;
+    if (!pb.cqs_->Next(&got_tag, &ok)) {
+      break;
+    }
+    if (unlikely(!ok)) {
+      LOG(ERROR) << "Completion queue returned not ok for write";
+      continue;
+    }
+    pb.completed_count_++;
+  }
 }
 
 // 注册 GRPCParameterClient 到工厂
