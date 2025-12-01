@@ -1,36 +1,28 @@
-#include "dist_grpc_ps_client.h"
+#include "dist_brpc_ps_client.h"
 
 #include <algorithm>
+#include <fstream>
 #include <future>
 #include <thread>
-#include <fstream>
 
 #include "base/factory.h"
 #include "base/log.h"
 #include "base/timer.h"
 
-using grpc::Channel;
-using grpc::ClientAsyncResponseReader;
-using grpc::ClientContext;
-using grpc::Status;
-using recstoreps::CommandRequest;
-using recstoreps::CommandResponse;
-using recstoreps::GetParameterRequest;
-using recstoreps::GetParameterResponse;
-using recstoreps::InitEmbeddingTableRequest;
-using recstoreps::InitEmbeddingTableResponse;
-using recstoreps::PSCommand;
-using recstoreps::PutParameterRequest;
-using recstoreps::PutParameterResponse;
-using recstoreps::UpdateParameterRequest;
-using recstoreps::UpdateParameterResponse;
+using recstoreps_brpc::CommandRequest;
+using recstoreps_brpc::CommandResponse;
+using recstoreps_brpc::GetParameterRequest;
+using recstoreps_brpc::GetParameterResponse;
+using recstoreps_brpc::PSCommand;
+using recstoreps_brpc::PutParameterRequest;
+using recstoreps_brpc::PutParameterResponse;
 
 namespace recstore {
 
 FACTORY_REGISTER(
-    BasePSClient, distributed_grpc, DistributedGRPCParameterClient, json);
+    BasePSClient, distributed_brpc, DistributedBRPCParameterClient, json);
 
-DistributedGRPCParameterClient::DistributedGRPCParameterClient(json config)
+DistributedBRPCParameterClient::DistributedBRPCParameterClient(json config)
     : BasePSClient(config) {
   json client_config;
 
@@ -93,13 +85,13 @@ DistributedGRPCParameterClient::DistributedGRPCParameterClient(json config)
 
   InitializeClients();
 
-  LOG(INFO) << "Initialized DistributedGRPCParameterClient with " << num_shards_
+  LOG(INFO) << "Initialized DistributedBRPCParameterClient with " << num_shards_
             << " shards, hash method: " << hash_method_;
 }
 
-DistributedGRPCParameterClient::~DistributedGRPCParameterClient() {}
+DistributedBRPCParameterClient::~DistributedBRPCParameterClient() {}
 
-void DistributedGRPCParameterClient::InitializeClients() {
+void DistributedBRPCParameterClient::InitializeClients() {
   clients_.clear();
   clients_.reserve(server_configs_.size());
 
@@ -109,15 +101,15 @@ void DistributedGRPCParameterClient::InitializeClients() {
                           {"port", server_config.port},
                           {"shard", server_config.shard}};
 
-    auto client = std::make_unique<GRPCParameterClient>(client_config);
+    auto client = std::make_unique<BRPCParameterClient>(client_config);
     clients_.push_back(std::move(client));
 
-    LOG(INFO) << "Created gRPC client for shard " << server_config.shard
+    LOG(INFO) << "Created bRPC client for shard " << server_config.shard
               << " at " << server_config.host << ":" << server_config.port;
   }
 }
 
-int DistributedGRPCParameterClient::GetShardId(uint64_t key) const {
+int DistributedBRPCParameterClient::GetShardId(uint64_t key) const {
   if (hash_method_ == "city_hash") {
     return GetHash(key) % num_shards_;
   } else if (hash_method_ == "simple_mod") {
@@ -129,7 +121,7 @@ int DistributedGRPCParameterClient::GetShardId(uint64_t key) const {
   }
 }
 
-void DistributedGRPCParameterClient::PartitionKeys(
+void DistributedBRPCParameterClient::PartitionKeys(
     const base::ConstArray<uint64_t>& keys,
     std::vector<std::vector<uint64_t>>& partitioned_keys) const {
   for (auto& partition : partitioned_key_buffer_) {
@@ -158,7 +150,7 @@ void DistributedGRPCParameterClient::PartitionKeys(
   partitioned_keys = partitioned_key_buffer_;
 }
 
-bool DistributedGRPCParameterClient::GetParameter(
+bool DistributedBRPCParameterClient::GetParameter(
     const base::ConstArray<uint64_t>& keys,
     std::vector<std::vector<float>>* values) {
   if (keys.Size() == 0) {
@@ -166,7 +158,7 @@ bool DistributedGRPCParameterClient::GetParameter(
     return true;
   }
 
-  xmh::Timer timer("DistributedGRPCParameterClient::GetParameter");
+  xmh::Timer timer("DistributedBRPCParameterClient::GetParameter");
 
   std::vector<std::vector<uint64_t>> partitioned_keys;
   PartitionKeys(keys, partitioned_keys);
@@ -197,7 +189,7 @@ bool DistributedGRPCParameterClient::GetParameter(
         }));
   }
 
-  // 3. 等待所有请求完成
+  // 等待所有请求完成
   for (auto& future : futures) {
     if (!future.get()) {
       LOG(ERROR) << "Failed to get parameters from one of the shards";
@@ -205,21 +197,20 @@ bool DistributedGRPCParameterClient::GetParameter(
     }
   }
 
-  // 4. 合并结果
+  // 合并结果
   MergeResults(keys, partitioned_results, values);
 
   return true;
 }
 
-void DistributedGRPCParameterClient::MergeResults(
+void DistributedBRPCParameterClient::MergeResults(
     const base::ConstArray<uint64_t>& keys,
     const std::vector<std::vector<std::vector<float>>>& partitioned_results,
     std::vector<std::vector<float>>* values) const {
   values->clear();
   values->resize(keys.Size());
 
-  // 重建key -> index映射
-  std::unordered_map<uint64_t, size_t> key_to_result_index;
+  // 重建 key -> index 映射
   for (int shard_id = 0; shard_id < num_shards_; ++shard_id) {
     for (size_t i = 0; i < key_index_mapping_[shard_id].size(); ++i) {
       size_t original_index = key_index_mapping_[shard_id][i];
@@ -230,7 +221,7 @@ void DistributedGRPCParameterClient::MergeResults(
   }
 }
 
-void DistributedGRPCParameterClient::MergeResultsToArray(
+void DistributedBRPCParameterClient::MergeResultsToArray(
     const base::ConstArray<uint64_t>& keys,
     const std::vector<std::vector<std::vector<float>>>& partitioned_results,
     float* values) const {
@@ -262,8 +253,8 @@ void DistributedGRPCParameterClient::MergeResultsToArray(
   }
 }
 
-// 实现BasePSClient接口
-int DistributedGRPCParameterClient::GetParameter(
+// 实现 BasePSClient 接口
+int DistributedBRPCParameterClient::GetParameter(
     const base::ConstArray<uint64_t>& keys, float* values) {
   std::vector<std::vector<float>> result_vectors;
   bool success = GetParameter(keys, &result_vectors);
@@ -272,17 +263,17 @@ int DistributedGRPCParameterClient::GetParameter(
     return -1;
   }
 
-  // 将vector结果复制到连续内存
+  // 将 vector 结果复制到连续内存
   MergeResultsToArray(keys, {{result_vectors}}, values);
   return 0;
 }
 
-int DistributedGRPCParameterClient::AsyncGetParameter(
+int DistributedBRPCParameterClient::AsyncGetParameter(
     const base::ConstArray<uint64_t>& keys, float* values) {
   return GetParameter(keys, values);
 }
 
-int DistributedGRPCParameterClient::PutParameter(
+int DistributedBRPCParameterClient::PutParameter(
     const base::ConstArray<uint64_t>& keys,
     const std::vector<std::vector<float>>& values) {
   if (keys.Size() != values.size()) {
@@ -302,7 +293,7 @@ int DistributedGRPCParameterClient::PutParameter(
     }
   }
 
-  // 并发put到各个分片
+  // 并发 put 到各个分片
   std::vector<std::future<int>> futures;
 
   for (int shard_id = 0; shard_id < num_shards_; ++shard_id) {
@@ -337,7 +328,7 @@ int DistributedGRPCParameterClient::PutParameter(
   return 0;
 }
 
-void DistributedGRPCParameterClient::Command(PSCommand command) {
+void DistributedBRPCParameterClient::Command(PSCommand command) {
   std::vector<std::future<void>> futures;
 
   for (auto& client : clients_) {
@@ -351,7 +342,7 @@ void DistributedGRPCParameterClient::Command(PSCommand command) {
   }
 }
 
-bool DistributedGRPCParameterClient::ClearPS() {
+bool DistributedBRPCParameterClient::ClearPS() {
   std::vector<std::future<bool>> futures;
 
   for (auto& client : clients_) {
@@ -370,7 +361,7 @@ bool DistributedGRPCParameterClient::ClearPS() {
   return all_success;
 }
 
-bool DistributedGRPCParameterClient::LoadCkpt(
+bool DistributedBRPCParameterClient::LoadCkpt(
     const std::vector<std::string>& model_config_path,
     const std::vector<std::string>& emb_file_path) {
   std::vector<std::future<bool>> futures;
@@ -392,7 +383,7 @@ bool DistributedGRPCParameterClient::LoadCkpt(
   return all_success;
 }
 
-int DistributedGRPCParameterClient::UpdateParameter(
+int DistributedBRPCParameterClient::UpdateParameter(
     const std::string& table_name,
     const base::ConstArray<uint64_t>& keys,
     const std::vector<std::vector<float>>* grads) {
@@ -425,6 +416,7 @@ int DistributedGRPCParameterClient::UpdateParameter(
     if (partitioned_keys[shard_id].empty()) {
       continue;
     }
+
     auto it = shard_to_client_index_.find(shard_id);
     if (it == shard_to_client_index_.end()) {
       LOG(ERROR) << "No client found for shard " << shard_id;
@@ -451,7 +443,7 @@ int DistributedGRPCParameterClient::UpdateParameter(
   return 0;
 }
 
-int DistributedGRPCParameterClient::InitEmbeddingTable(
+int DistributedBRPCParameterClient::InitEmbeddingTable(
     const std::string& table_name,
     const recstore::EmbeddingTableConfig& config) {
   std::vector<std::future<int>> futures;
@@ -468,34 +460,33 @@ int DistributedGRPCParameterClient::InitEmbeddingTable(
       return -1;
     }
   }
-
   return 0;
 }
 
 // Prefetch 接口实现
-uint64_t DistributedGRPCParameterClient::PrefetchParameter(
+uint64_t DistributedBRPCParameterClient::PrefetchParameter(
     const base::ConstArray<uint64_t>& keys) {
-  // 对于分布式客户端，暂时不支持Prefetch，直接返回0表示无效ID
+  // 对于分布式客户端，暂时不支持 Prefetch，直接返回 0 表示无效 ID
   LOG(WARNING)
-      << "PrefetchParameter not fully implemented for distributed client";
+      << "PrefetchParameter not fully implemented for distributed bRPC client";
   return 0;
 }
 
-bool DistributedGRPCParameterClient::IsPrefetchDone(uint64_t prefetch_id) {
-  // 暂时返回true，表示总是完成
+bool DistributedBRPCParameterClient::IsPrefetchDone(uint64_t prefetch_id) {
+  // 暂时返回 true，表示总是完成
   return true;
 }
 
-void DistributedGRPCParameterClient::WaitForPrefetch(uint64_t prefetch_id) {
+void DistributedBRPCParameterClient::WaitForPrefetch(uint64_t prefetch_id) {
   // 暂时空实现
   return;
 }
 
-bool DistributedGRPCParameterClient::GetPrefetchResult(
+bool DistributedBRPCParameterClient::GetPrefetchResult(
     uint64_t prefetch_id, std::vector<std::vector<float>>* values) {
-  // 暂时返回false，表示不支持
+  // 暂时返回 false，表示不支持
   LOG(WARNING)
-      << "GetPrefetchResult not fully implemented for distributed client";
+      << "GetPrefetchResult not fully implemented for distributed bRPC client";
   return false;
 }
 
