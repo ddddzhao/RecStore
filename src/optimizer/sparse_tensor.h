@@ -2,21 +2,27 @@
 #include <vector>
 #include "../storage/kv_engine/base_kv.h"
 
-#define DIM_TYPE uint8_t
+#define TAG_TYPE uint8_t
+
+enum TensorType { PARAMETER = 0, MOMENT_1 = 1, MOMENT_2 = 2 };
 
 class SparseTensor {
 private:
   std::string name;
+  TensorType type;
   std::vector<uint64_t> shape;
   BaseKV* kv;
-  uint64_t concatKeyAndDim(uint64_t key, DIM_TYPE dim);
+  uint64_t concatKeyAndDim(uint64_t key, TAG_TYPE tag);
 
 public:
   SparseTensor() = default;
-  void init(std::string& name, std::vector<uint64_t>& shape, BaseKV* kv);
-  void Get(const uint64_t key, std::string& value, DIM_TYPE dim, unsigned tid);
+  void init(std::string& name,
+            TensorType type,
+            std::vector<uint64_t>& shape,
+            BaseKV* kv);
+  void Get(const uint64_t key, std::string& value, TAG_TYPE tag, unsigned tid);
   void Put(const uint64_t key,
            const std::string_view& value,
-           DIM_TYPE dim,
+           TAG_TYPE tag,
            unsigned tid);
 };
