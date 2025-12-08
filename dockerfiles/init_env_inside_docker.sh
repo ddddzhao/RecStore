@@ -253,7 +253,7 @@ step_libibverbs() {
 
 step_brpc() {
 
-    sudo apt install libleveldb-dev
+    sudo apt install -y libleveldb-dev
     # protobuf
     cd ${PROJECT_PATH}/third_party/grpc/third_party/protobuf
     rm -rf _build
