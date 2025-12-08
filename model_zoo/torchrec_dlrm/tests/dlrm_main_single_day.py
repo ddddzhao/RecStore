@@ -239,6 +239,31 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
         default=2,
         help="Prefetch queue depth (batches)",
     )
+    parser.add_argument(
+        "--fuse-emb-tables",
+        dest="fuse_emb_tables",
+        action="store_true",
+        help="Enable embedding table fusion (single pull + prefix encoding).",
+    )
+    parser.add_argument(
+        "--no-fuse-emb-tables",
+        dest="fuse_emb_tables",
+        action="store_false",
+        help="Disable embedding table fusion and use per-feature pulls.",
+    )
+    parser.set_defaults(fuse_emb_tables=True)
+    parser.add_argument(
+        "--fuse-k",
+        type=int,
+        default=30,
+        help="Bit prefix shift (k) used for fusion: fused_id=(table_idx<<k)|row_id",
+    )
+    parser.add_argument(
+        "--trace_file",
+        type=str,
+        default=None,
+        help="Profiler chrome trace file path",
+    )
     
     args = parser.parse_args(argv)
     
@@ -361,7 +386,12 @@ def main(argv: List[str]) -> None:
         }
         for feature_idx, feature_name in enumerate(DEFAULT_CAT_NAMES)
     ]
-    embedding_bag_collection = RecStoreEmbeddingBagCollection(eb_configs)
+    embedding_bag_collection = RecStoreEmbeddingBagCollection(
+        eb_configs,
+        enable_fusion=args.fuse_emb_tables,
+        fusion_k=args.fuse_k,
+    )
+    print(f"Embedding fusion enabled: {args.fuse_emb_tables}; fusion_k={args.fuse_k}")
     prefetch_enabled = args.enable_prefetch
     if prefetch_enabled:
         try:
@@ -402,8 +432,8 @@ def main(argv: List[str]) -> None:
     
     with profile(
         activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
-        schedule=schedule(wait=1, warmup=1, active=3, repeat=1),
-        on_trace_ready=tensorboard_trace_handler("./logs_recstore") if dist.get_rank() == 0 else None,
+        schedule=schedule(wait=1, warmup=5, active=2, repeat=1),
+        on_trace_ready=(lambda p: p.export_chrome_trace(args.trace_file)) if (dist.get_rank() == 0 and args.trace_file) else (tensorboard_trace_handler("./logs_recstore") if dist.get_rank() == 0 else None),
         record_shapes=True,
         profile_memory=True,
         with_stack=True
@@ -418,6 +448,14 @@ def main(argv: List[str]) -> None:
             train_loss = 0.0
             train_auroc = 0.0
             num_batches = 0
+            forward_time_total = 0.0
+            backward_time_total = 0.0
+            use_cuda_timing = torch.cuda.is_available() and device.type == 'cuda'
+            if use_cuda_timing:
+                fwd_start = torch.cuda.Event(enable_timing=True)
+                fwd_end = torch.cuda.Event(enable_timing=True)
+                bwd_start = torch.cuda.Event(enable_timing=True)
+                bwd_end = torch.cuda.Event(enable_timing=True)
             
             for batch_idx, batch in enumerate(tqdm(train_dataloader, desc="Training")):
                 if prefetch_enabled and len(batch) == 4:
@@ -431,10 +469,35 @@ def main(argv: List[str]) -> None:
                 labels = labels.to(device)
                 
                 optimizer.zero_grad()
+                if use_cuda_timing:
+                    fwd_start.record()
+                else:
+                    import time
+                    t_fwd_start = time.time()
                 outputs = model(dense_features, sparse_features)
+                if use_cuda_timing:
+                    fwd_end.record()
+                else:
+                    t_fwd_end = time.time()
                 loss = criterion(outputs, labels.float())
                 
+                if use_cuda_timing:
+                    bwd_start.record()
+                else:
+                    t_bwd_start = time.time()
                 loss.backward()
+                if use_cuda_timing:
+                    bwd_end.record()
+                    torch.cuda.synchronize()
+                    fwd_ms = fwd_start.elapsed_time(fwd_end)
+                    bwd_ms = bwd_start.elapsed_time(bwd_end)
+                else:
+                    import time
+                    t_bwd_end = time.time()
+                    fwd_ms = (t_fwd_end - t_fwd_start) * 1000.0
+                    bwd_ms = (t_bwd_end - t_bwd_start) * 1000.0
+                forward_time_total += fwd_ms
+                backward_time_total += bwd_ms
                 optimizer.step()
                 prof.step()
                 
@@ -444,12 +507,14 @@ def main(argv: List[str]) -> None:
                 num_batches += 1
                 
                 if batch_idx % 100 == 0:
-                    print(f"Batch {batch_idx}: Loss = {loss.item():.4f}, AUROC = {auroc_score.item():.4f}")
+                    print(f"Batch {batch_idx}: Loss={loss.item():.4f} AUROC={auroc_score.item():.4f} FWD(ms)={fwd_ms:.2f} BWD(ms)={bwd_ms:.2f}")
             
             avg_train_loss = train_loss / num_batches
             avg_train_auroc = train_auroc / num_batches
             
-            print(f"Epoch {epoch + 1} - Training Loss: {avg_train_loss:.4f}, Training AUROC: {avg_train_auroc:.4f}")
+            avg_fwd = forward_time_total / num_batches if num_batches else 0.0
+            avg_bwd = backward_time_total / num_batches if num_batches else 0.0
+            print(f"Epoch {epoch + 1} - Training Loss: {avg_train_loss:.4f}, Training AUROC: {avg_train_auroc:.4f}, AvgFWD(ms): {avg_fwd:.2f}, AvgBWD(ms): {avg_bwd:.2f}")
             
             model.eval()
             val_loss = 0.0
