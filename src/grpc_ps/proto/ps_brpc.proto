@@ -1,5 +1,7 @@
 syntax="proto3";
-package recstoreps;
+package recstoreps_brpc;
+
+option cc_generic_services = true;
 
 message GetParameterRequest {
   optional bytes keys = 1;
@@ -61,3 +63,4 @@ service ParameterService {
   rpc UpdateParameter(UpdateParameterRequest) returns (UpdateParameterResponse);
   rpc InitEmbeddingTable(InitEmbeddingTableRequest) returns (InitEmbeddingTableResponse);
 };
+

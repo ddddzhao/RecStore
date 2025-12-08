@@ -7,6 +7,17 @@
 #include "base/log.h"
 
 namespace recstore {
+  struct EmbeddingTableConfig { uint64_t num_embeddings, embedding_dim; 
+  
+  std::string Serialize() const {
+    nlohmann::json payload{
+        {"num_embeddings", num_embeddings},
+        {"embedding_dim", embedding_dim}
+    };
+    return payload.dump();
+  }
+};
+
 
 enum class PSCommand { CLEAR_PS, RELOAD_PS, LOAD_FAKE_DATA };
 
@@ -22,6 +33,8 @@ class BasePSClient {
 
   virtual int PutParameter(const base::ConstArray<uint64_t> &keys,
                            const std::vector<std::vector<float>> &values) = 0;
+  virtual int AsyncGetParameter(const base::ConstArray<uint64_t> &keys,
+                                float *values) = 0;
 
   virtual void Command(PSCommand command) = 0;
 

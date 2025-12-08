@@ -33,6 +33,10 @@ using recstoreps::GetParameterResponse;
 using recstoreps::PSCommand;
 using recstoreps::PutParameterRequest;
 using recstoreps::PutParameterResponse;
+using recstoreps::InitEmbeddingTableRequest;
+using recstoreps::InitEmbeddingTableResponse;
+using recstoreps::UpdateParameterRequest;
+using recstoreps::UpdateParameterResponse;
 
 DEFINE_string(config_path, RECSTORE_PATH "/recstore_config.json",
               "config file path");
@@ -151,6 +155,19 @@ class ParameterServiceImpl final
     total_put_requests_++;
     total_put_keys_ += size;
     total_put_bytes_ += total_bytes;
+    return Status::OK;
+  }
+
+  Status UpdateParameter(ServerContext *context,
+                         const UpdateParameterRequest *request,
+                         UpdateParameterResponse *reply) override {
+    
+  }
+
+  Status InitEmbeddingTable(ServerContext *context,
+                         const InitEmbeddingTableRequest *request,
+                         InitEmbeddingTableResponse *reply) override {
+   
     return Status::OK;
   }
 
