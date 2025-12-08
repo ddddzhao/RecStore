@@ -74,8 +74,8 @@ target_link_libraries(dist_grpc_ps_client_test PUBLIC
     dist_grpc_ps_client
 )
 
-set(BRPC_ROOT "/home/xieminhui/rec_workspace/RecStore/third_party/brpc-install")
-set(PROTOBUF_ROOT "/home/xieminhui/rec_workspace/RecStore/third_party/protobuf-install")
+set(BRPC_ROOT "${PROJECT_SOURCE_DIR}/third_party/brpc-install")
+set(PROTOBUF_ROOT "${PROJECT_SOURCE_DIR}/third_party/protobuf-install")
 
 
 
@@ -88,7 +88,7 @@ find_path(BRPC_INCLUDE_PATH
 
 find_library(BRPC_LIB
     NAMES brpc libbrpc
-    PATHS ${BRPC_ROOT}/lib
+    PATHS ${BRPC_ROOT}/lib ${BRPC_ROOT}/lib64
     NO_DEFAULT_PATH
 )
 
@@ -100,7 +100,7 @@ find_path(CUSTOM_PROTOBUF_INCLUDE
 )
 find_library(CUSTOM_PROTOBUF_LIB
     NAMES protobuf libprotobuf
-    PATHS ${PROTOBUF_ROOT}/lib
+    PATHS ${PROTOBUF_ROOT}/lib ${PROTOBUF_ROOT}/lib64
     NO_DEFAULT_PATH
 )
 
