@@ -23,4 +23,8 @@ add_subdirectory(small_tests)
 
 add_subdirectory(framework)
 
-add_subdirectory(executable/uvm)
+if(ENABLE_CUDA AND CMAKE_CUDA_COMPILER)
+	add_subdirectory(executable/uvm)
+else()
+	message(STATUS "Skipping executable/uvm because CUDA is disabled or nvcc not found")
+endif()

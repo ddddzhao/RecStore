@@ -1,0 +1,77 @@
+name: CI Build CPU
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      TORCH_VERSION: "2.5.0"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          fetch-depth: 0
+
+      - name: Cache submodules git data
+        uses: actions/cache@v4
+        with:
+          path: .git/modules
+          key: submodules-${{ runner.os }}-${{ hashFiles('.gitmodules') }}
+          restore-keys: |
+            submodules-${{ runner.os }}-${{ hashFiles('.gitmodules') }}
+            submodules-${{ runner.os }}-
+
+      - name: Update submodules
+        run: |
+          set -euo pipefail
+          git submodule sync --recursive
+          git submodule update --init --recursive --jobs 4 --depth 0
+
+      - name: Free disk space
+        run: |
+          set -euxo pipefail
+          df -h
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache || true
+          sudo docker system prune -af || true
+          df -h
+
+      - name: Install host prerequisites
+        run: |
+          set -euo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+          bash dockerfiles/init_host_prereqs.sh
+
+      - name: Init env inside docker
+        run: |
+          set -euo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+          CI_THROTTLE_MAKE=1 LIBTORCH_VARIANT=cpu SKIP_SPDK=1 SKIP_HUGECTR=1 SKIP_LIBIBVERBS=1 \
+            bash dockerfiles/init_env_inside_docker.sh
+
+      - name: Configure CMake
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          cd build
+          cmake -DENABLE_CUDA=OFF -DCMAKE_BUILD_TYPE=Debug -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ..
+
+      - name: Build
+        run: |
+          set -euo pipefail
+          cd build
+          make -j4
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            init_env_*.log
+            build/CMakeCache.txt
+            build/compile_commands.json
