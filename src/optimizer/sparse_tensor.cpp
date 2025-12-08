@@ -1,0 +1,31 @@
+#include "sparse_tensor.h"
+
+uint64_t SparseTensor::concatKeyAndTag(uint64_t key, TAG_TYPE tag) {
+  constexpr int tag_bits = sizeof(TAG_TYPE) * 8;
+  constexpr int shift    = (sizeof(uint64_t) * 8) - tag_bits;
+  key &= (~0ULL >> tag_bits);
+  return (static_cast<uint64_t>(tag) << shift) | key;
+}
+
+void SparseTensor::init(std::string& name,
+                        TensorType type,
+                        TAG_TYPE tag,
+                        std::vector<uint64_t>& shape,
+                        BaseKV* kv) {
+  this->name  = name;
+  this->type  = type;
+  this->tag   = tag;
+  this->shape = shape;
+  this->kv    = kv;
+}
+
+void SparseTensor::Get(const uint64_t key, std::string& value, unsigned tid) {
+  auto _key = concatKeyAndTag(key, tag);
+  kv->Get(_key, value, tid);
+}
+
+void SparseTensor::Put(
+    const uint64_t key, const std::string_view& value, unsigned tid) {
+  auto _key = concatKeyAndTag(key, tag);
+  kv->Put(_key, value, tid);
+}

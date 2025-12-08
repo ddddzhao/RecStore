@@ -13,6 +13,7 @@ add_subdirectory(rdma_ps)
 
 add_subdirectory(memory)
 add_subdirectory(storage)
+add_subdirectory(optimizer)
 
 add_subdirectory(kg)
 add_subdirectory(test)
