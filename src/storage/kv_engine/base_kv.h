@@ -13,7 +13,7 @@ using boost::coroutines2::coroutine;
 
 struct BaseKVConfig {
   int num_threads_ = 0;
-  json json_config_;  // add your custom config in this field
+  json json_config_; // add your custom config in this field
 };
 /*
 ===============================================================
@@ -100,7 +100,7 @@ if (!kv) throw std::runtime_error("Create KV engine failed: " + r.engine);
 3) HYBRID 值（KVEngineHybrid)
    cfg.json_config_ = {
      {"path", "/data/hybrid"},
-     {"index_type", "DRAM/SSD"},               
+     {"index_type", "DRAM/SSD"},
      {"value_type", "HYBRID"},
      {"shmcapacity",  128ull * 1'000'000},  // DRAM 侧字节数
      {"ssdcapacity",  256ull * 1'000'000},  // SSD  侧字节数
@@ -113,8 +113,10 @@ if (!kv) throw std::runtime_error("Create KV engine failed: " + r.engine);
 
 五、校验与排错
 -------------
-- 若你仍显式配置了 "engine_type"，它必须与 ResolveEngine 推导结果一致；不一致会抛异常。
-- HYBRID 缺 "shmcapacity"/"ssdcapacity" → ResolveEngine 会抛 std::invalid_argument。
+- 若你仍显式配置了 "engine_type"，它必须与 ResolveEngine
+推导结果一致；不一致会抛异常。
+- HYBRID 缺 "shmcapacity"/"ssdcapacity" → ResolveEngine 会抛
+std::invalid_argument。
 - 非 HYBRID 缺 "capacity"/"value_size" → 同上抛异常。
 
 
@@ -122,46 +124,46 @@ if (!kv) throw std::runtime_error("Create KV engine failed: " + r.engine);
 */
 
 class BaseKV {
- public:
+public:
   virtual ~BaseKV() { std::cout << "exit BaseKV" << std::endl; }
 
-  explicit BaseKV(const BaseKVConfig &config){};
+  explicit BaseKV(const BaseKVConfig& config){};
 
   virtual void Util() {
     std::cout << "BaseKV Util: no impl" << std::endl;
     return;
   }
-  virtual void Get(const uint64_t key, std::string &value, unsigned tid) = 0;
-  virtual void Put(const uint64_t key, const std::string_view &value,
-                   unsigned tid) = 0;
+  virtual void Get(const uint64_t key, std::string& value, unsigned tid) = 0;
+  virtual void
+  Put(const uint64_t key, const std::string_view& value, unsigned tid) = 0;
 
-  virtual void BatchPut(coroutine<void>::push_type &sink,
+  virtual void BatchPut(coroutine<void>::push_type& sink,
                         base::ConstArray<uint64_t> keys,
-                        std::vector<base::ConstArray<float>> *values,
+                        std::vector<base::ConstArray<float>>* values,
                         unsigned tid) {
     LOG(FATAL) << "not implemented";
   };
 
   virtual void BatchGet(base::ConstArray<uint64_t> keys,
-                        std::vector<base::ConstArray<float>> *values,
+                        std::vector<base::ConstArray<float>>* values,
                         unsigned tid) = 0;
 
-  virtual void BatchGet(coroutine<void>::push_type &sink,
+  virtual void BatchGet(coroutine<void>::push_type& sink,
                         base::ConstArray<uint64_t> keys,
-                        std::vector<base::ConstArray<float>> *values,
+                        std::vector<base::ConstArray<float>>* values,
                         unsigned tid) {
     LOG(FATAL) << "not implemented";
   }
 
   virtual void DebugInfo() const {}
 
-  virtual void BulkLoad(base::ConstArray<uint64_t> keys, const void *value) {
+  virtual void BulkLoad(base::ConstArray<uint64_t> keys, const void* value) {
     LOG(FATAL) << "not implemented";
   };
 
   virtual void LoadFakeData(int64_t key_capacity, int value_size) {
     std::vector<uint64_t> keys;
-    float *values = new float[value_size / sizeof(float) * key_capacity];
+    float* values = new float[value_size / sizeof(float) * key_capacity];
     keys.reserve(key_capacity);
     for (int64_t i = 0; i < key_capacity; i++) {
       keys.push_back(i);
@@ -172,5 +174,5 @@ class BaseKV {
 
   virtual void clear() { LOG(FATAL) << "not implemented"; };
 
- protected:
+protected:
 };
