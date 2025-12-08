@@ -251,6 +251,38 @@ step_libibverbs() {
     sudo cp -f libibverbs.so.1.14.39.0 libibverbs.so
 }
 
+step_brpc() {
+
+    sudo apt install -y libleveldb-dev
+    # protobuf
+    cd ${PROJECT_PATH}/third_party/grpc/third_party/protobuf
+    rm -rf _build
+    mkdir _build && cd _build
+    cmake .. -DCMAKE_BUILD_TYPE=Release ${CMAKE_REQUIRE} -DCMAKE_INSTALL_PREFIX=${PROJECT_PATH}/third_party/protobuf-install
+    make -j
+    make install
+    
+    cd ${PROJECT_PATH}/third_party/
+    git clone https://github.com/apache/brpc.git
+    
+    # brpc
+    cd ${PROJECT_PATH}/third_party/brpc
+    rm -rf _build
+    mkdir -p _build
+    cd _build
+    # when cmake done please check the protobuf path is correct ${PROJECT_PATH}/third_party/protobuf-install
+    # and check the openssl path is correct /usr/lib/x86_64-linux-gnu/libssl.so(system path)
+    cmake ..   -DProtobuf_INCLUDE_DIR=${PROJECT_PATH}/third_party/protobuf-install/include \
+      -DProtobuf_LIBRARIES=${PROJECT_PATH}/third_party/protobuf-install/lib/libprotobuf.a   \
+      -DProtobuf_PROTOC_EXECUTABLE=${PROJECT_PATH}/third_party/protobuf-install/bin/protoc \
+      ${CMAKE_REQUIRE} \
+      -DCMAKE_INSTALL_PREFIX=${PROJECT_PATH}/third_party/brpc-install \
+      -DWITH_GLOG=ON
+    make -j
+    make install
+    
+}
+
 mkdir -p "${MARKER_DIR}"
 [ "$1" = "--clean" ]&&{ echo "Cleaning all markers..."; rm -rf "${MARKER_DIR:?}"; exit 0; };
 marker_path(){ echo "${MARKER_DIR}/${1}.done"; }
