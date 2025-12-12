@@ -1,4 +1,4 @@
-name: CI Build CPU
+name: Build CPU & Tests
 
 on:
   push:
@@ -53,6 +53,22 @@ jobs:
           CI_THROTTLE_MAKE=1 LIBTORCH_VARIANT=cpu SKIP_SPDK=1 SKIP_HUGECTR=1 SKIP_LIBIBVERBS=1 \
             bash dockerfiles/init_env_inside_docker.sh
 
+      - name: Install PyTorch wheel
+        env:
+          TORCH_VERSION: "${{ env.TORCH_VERSION }}"
+        run: |
+          set -euo pipefail
+          bash dockerfiles/build_torch_wheel.sh
+          WHL=$(ls -1 binary/torch-${TORCH_VERSION}*linux_x86_64.whl | head -n1)
+          python3 -m pip install --no-cache-dir "$WHL"
+
+      - name: Upload torch wheel
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: torch-wheel
+          path: binary/torch-${{ env.TORCH_VERSION }}*linux_x86_64.whl
+
       - name: Configure CMake
         run: |
           set -euo pipefail
@@ -61,6 +77,19 @@ jobs:
           cmake -DENABLE_CUDA=OFF -DCMAKE_BUILD_TYPE=Debug -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ..
 
       - name: Build
+        run: |
+          set -euo pipefail
+          cd build
+          make -j4
+
+      - name: Configure CMake (Mock KV)
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          cd build
+          cmake -DENABLE_CUDA=OFF -DCMAKE_BUILD_TYPE=Debug -DCMAKE_POLICY_VERSION_MINIMUM=3.5 .. -DUSE_FAKE_KVCLIENT=ON
+
+      - name: Build (Mock KV)
         run: |
           set -euo pipefail
           cd build
@@ -75,3 +104,55 @@ jobs:
             init_env_*.log
             build/CMakeCache.txt
             build/compile_commands.json
+
+      - name: Upload recstore ops library
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recstore-ops
+          path: build/lib/lib_recstore_ops.so
+
+  test-op:
+    name: Test OP Layer with Mock KV
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          fetch-depth: 0
+
+      - name: Download ops artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: recstore-ops
+          path: ops
+
+      - name: Download torch wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: torch-wheel
+          path: wheel
+
+      - name: Prepare build lib and install wheel
+        env:
+          TORCH_VERSION: "${{ env.TORCH_VERSION }}"
+        run: |
+          set -euo pipefail
+          mkdir -p build/lib
+          cp ops/lib_recstore_ops.so build/lib/
+          WHL=$(ls -1 wheel/torch-${TORCH_VERSION}*linux_x86_64.whl | head -n1)
+          python3 -m pip install --no-cache-dir "$WHL"
+
+      - name: Run ci/test scripts
+        run: |
+          set -euo pipefail
+          for f in ci/test/*.sh; do
+            echo "Running $f";
+            bash "$f";
+          done
+      - name: Print first 3 characters
+        run: |
+          set -euo pipefail
+          head -c 3 ops/lib_recstore_ops.so | xxd -p -c3 || true
