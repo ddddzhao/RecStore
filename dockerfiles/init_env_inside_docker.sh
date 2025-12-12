@@ -303,9 +303,6 @@ step_brpc() {
     make ${MAKE_OPTS}
     make ${MAKE_OPTS} install
     
-    cd ${PROJECT_PATH}/third_party/
-    git clone https://github.com/apache/brpc.git
-    
     # brpc
     cd ${PROJECT_PATH}/third_party/brpc
     rm -rf _build
