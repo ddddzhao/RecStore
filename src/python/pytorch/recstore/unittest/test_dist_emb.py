@@ -13,7 +13,7 @@ class TestDistEmb(unittest.TestCase):
     def setUpClass(cls):
         """Set up the test class with a KV client and shared parameters."""
         cls.kv_client = get_kv_client()
-        cls.embedding_dim = 16
+        cls.embedding_dim = 128
         cls.learning_rate = 0.01
 
     def test_initialization_and_forward(self):

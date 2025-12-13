@@ -82,6 +82,13 @@ jobs:
           cd build
           make -j4
 
+      - name: Upload build directory
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-folder
+          path: build/
+
       - name: Configure CMake (Mock KV)
         run: |
           set -euo pipefail
@@ -94,6 +101,13 @@ jobs:
           set -euo pipefail
           cd build
           make -j4
+
+      - name: Upload build directory (Mock KV)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-folder-mock
+          path: build/
 
       - name: Upload build artifacts
         if: always()
@@ -112,10 +126,12 @@ jobs:
           name: recstore-ops
           path: build/lib/lib_recstore_ops.so
 
-  test-op:
+  test-mock:
     name: Test OP Layer with Mock KV
     needs: build
     runs-on: ubuntu-latest
+    env:
+      TORCH_VERSION: "2.5.0"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -123,7 +139,13 @@ jobs:
           submodules: false
           fetch-depth: 0
 
-      - name: Download ops artifact
+      - name: Download mock build folder
+        uses: actions/download-artifact@v4
+        with:
+          name: build-folder-mock
+          path: build
+
+      - name: Download recstore ops (mock)
         uses: actions/download-artifact@v4
         with:
           name: recstore-ops
@@ -135,13 +157,76 @@ jobs:
           name: torch-wheel
           path: wheel
 
-      - name: Prepare build lib and install wheel
-        env:
-          TORCH_VERSION: "${{ env.TORCH_VERSION }}"
+      - name: Install host prerequisites
         run: |
           set -euo pipefail
-          mkdir -p build/lib
-          cp ops/lib_recstore_ops.so build/lib/
+          export DEBIAN_FRONTEND=noninteractive
+          bash dockerfiles/init_host_prereqs.sh
+
+      - name: Install wheel
+        run: |
+          set -euo pipefail
+          ls -la . || true
+          ls -la build || true
+          ls -la build-folder-mock || true
+          ls -la build/lib || true
+          # Ensure lib_recstore_ops.so exists
+          if [ ! -f build/lib/lib_recstore_ops.so ]; then
+            mkdir -p build/lib
+            cp ops/lib_recstore_ops.so build/lib/
+          fi
+          WHL=$(ls -1 wheel/torch-${TORCH_VERSION}*linux_x86_64.whl | head -n1)
+          python3 -m pip install --no-cache-dir "$WHL"
+
+      - name: Run ci/test scripts
+        run: |
+          set -euo pipefail
+          for f in ci/test/*.sh; do
+            echo "Running $f";
+            bash "$f" --mock;
+          done
+
+      - name: Run CTest
+        run: |
+          set -euo pipefail
+          cd build
+          ctest --verbose
+
+  test:
+    name: Test Storage Layer
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      TORCH_VERSION: "2.5.0"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          fetch-depth: 0
+
+      - name: Download mock build folder
+        uses: actions/download-artifact@v4
+        with:
+          name: build-folder
+          path: build
+
+      - name: Download torch wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: torch-wheel
+          path: wheel
+
+      - name: Install host prerequisites
+        run: |
+          set -euo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+          bash dockerfiles/init_host_prereqs.sh
+
+      - name: Install wheel
+        run: |
+          set -euo pipefail
+          ls -la build/lib || true
           WHL=$(ls -1 wheel/torch-${TORCH_VERSION}*linux_x86_64.whl | head -n1)
           python3 -m pip install --no-cache-dir "$WHL"
 
@@ -152,7 +237,9 @@ jobs:
             echo "Running $f";
             bash "$f";
           done
-      - name: Print first 3 characters
-        run: |
-          set -euo pipefail
-          head -c 3 ops/lib_recstore_ops.so | xxd -p -c3 || true
+
+      # - name: Run CTest
+      #   run: |
+      #     set -euo pipefail
+      #     cd build
+      #     ctest --verbose
