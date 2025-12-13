@@ -33,9 +33,9 @@ class _DistEmbFunction(torch.autograd.Function):
             unique_ids, inverse = torch.unique(ids_cpu, return_inverse=True)
             grad_sum = torch.zeros((unique_ids.size(0), grad_cpu.size(1)), dtype=grad_cpu.dtype)
             grad_sum.index_add_(0, inverse, grad_cpu)
-            current = module_instance._tensor[unique_ids]
-            updated = current - module_instance._lr * grad_sum
-            module_instance._tensor[unique_ids] = updated
+            # current = module_instance._tensor[unique_ids]
+            # updated = current - module_instance._lr * grad_sum
+            # module_instance._tensor[unique_ids] = updated
             module_instance._trace.append((unique_ids, grad_sum))
         return None, None, None, None
 

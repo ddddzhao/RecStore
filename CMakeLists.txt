@@ -1,5 +1,12 @@
-cmake_minimum_required(VERSION 3.5)
-project(RecStore LANGUAGES CXX CUDA C)
+cmake_minimum_required(VERSION 3.10)
+
+option(ENABLE_CUDA "Build with CUDA support" ON)
+
+if(ENABLE_CUDA)
+  project(RecStore LANGUAGES CXX CUDA C)
+else()
+  project(RecStore LANGUAGES CXX C)
+endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 if(CMAKE_EXPORT_COMPILE_COMMANDS)
@@ -8,12 +15,16 @@ endif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_VERBOSE_MAKEFILE ON)
-set(CUDA_SEPARABLE_COMPILATION ON) 
+if(ENABLE_CUDA)
+  set(CUDA_SEPARABLE_COMPILATION ON)
+endif()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE INTERNAL "") # works
 
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/Modules)
 
-find_package(CUDA REQUIRED)
+if(ENABLE_CUDA)
+  find_package(CUDA REQUIRED)
+endif()
 find_package(OpenMP REQUIRED)
 find_package(Threads)
 
@@ -69,45 +80,53 @@ set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -D_GLIBCXX_USE_CXX11_ABI=1")
 
 # setting compiler flags
 
-set(SM "80;86")
-foreach(arch_name ${SM})
+if(ENABLE_CUDA)
+  set(SM "80;86")
+  foreach(arch_name ${SM})
     if (arch_name STREQUAL 86 OR 
-        arch_name STREQUAL 80 OR 
-        arch_name STREQUAL 75 OR 
-        arch_name STREQUAL 70 OR 
-        arch_name STREQUAL 61 OR 
-        arch_name STREQUAL 60)
-        list(APPEND cuda_arch_list ${arch_name})
-        message(STATUS "-- Assign GPU architecture (sm=${arch_name})")
+      arch_name STREQUAL 80 OR 
+      arch_name STREQUAL 75 OR 
+      arch_name STREQUAL 70 OR 
+      arch_name STREQUAL 61 OR 
+      arch_name STREQUAL 60)
+      list(APPEND cuda_arch_list ${arch_name})
+      message(STATUS "-- Assign GPU architecture (sm=${arch_name})")
     else()
-        message(FATAL_ERROR "-- Unknown or unsupported GPU architecture (set sm=70)")
+      message(FATAL_ERROR "-- Unknown or unsupported GPU architecture (set sm=70)")
     endif()
-endforeach()
+  endforeach()
 
-list(LENGTH cuda_arch_list cuda_arch_list_length)
-if(${cuda_arch_list_length} EQUAL 0)
+  list(LENGTH cuda_arch_list cuda_arch_list_length)
+  if(${cuda_arch_list_length} EQUAL 0)
     list(APPEND cuda_arch_list "80")
-endif()
-list(REMOVE_DUPLICATES cuda_arch_list)
+  endif()
+  list(REMOVE_DUPLICATES cuda_arch_list)
 
-foreach(arch_name ${cuda_arch_list})
+  foreach(arch_name ${cuda_arch_list})
     set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -gencode arch=compute_${arch_name},code=sm_${arch_name}")
-endforeach()
+  endforeach()
+endif()
 
 set(CC_WARNING_FLAG "-Wall -Wno-unknown-pragmas -Wno-sign-compare -Wno-unused-parameter -Wno-unused-value -Wno-unused-variable -Wno-attributes -Wno-parentheses -Wno-unused-but-set-variable")
 string(REPLACE " " "," NVCC_WARNING_FLAG ${CC_WARNING_FLAG})
 
 set(CMAKE_C_FLAGS    "${CMAKE_C_FLAGS} -fPIC -g -ggdb3 -Wall")
 set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -fPIC -g -ggdb3 ${CC_WARNING_FLAG} --std=c++17")
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -ccbin /usr/bin/g++ -rdc=true --std=c++17 -Xcompiler ${NVCC_WARNING_FLAG},-g,-ggdb3,-fPIC -lineinfo --expt-extended-lambda --expt-relaxed-constexpr")
+if(ENABLE_CUDA)
+  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -ccbin /usr/bin/g++ -rdc=true --std=c++17 -Xcompiler ${NVCC_WARNING_FLAG},-g,-ggdb3,-fPIC -lineinfo --expt-extended-lambda --expt-relaxed-constexpr")
+endif()
 
 set(CMAKE_C_FLAGS_DEBUG    "${CMAKE_C_FLAGS_DEBUG} -fPIC -g -ggdb3 -O0 -Wall")
 set(CMAKE_CXX_FLAGS_DEBUG  "${CMAKE_CXX_FLAGS_DEBUG} -fPIC -g -ggdb3 -O0 ${CC_WARNING_FLAG}")
-set(CMAKE_CUDA_FLAGS_DEBUG "${CMAKE_CUDA_FLAGS_DEBUG}  -g -G -Xptxas -O0 -lineinfo -O0 -Xcompiler -O0,${NVCC_WARNING_FLAG},-g,-ggdb3,-fPIC")
+if(ENABLE_CUDA)
+  set(CMAKE_CUDA_FLAGS_DEBUG "${CMAKE_CUDA_FLAGS_DEBUG}  -g -G -Xptxas -O0 -lineinfo -O0 -Xcompiler -O0,${NVCC_WARNING_FLAG},-g,-ggdb3,-fPIC")
+endif()
 
 set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -fPIC -g -ggdb3 -O3 -Wall")
 set(CMAKE_CXX_FLAGS_RELEASE   "${CMAKE_C_FLAGS_RELEASE} -fPIC -g -ggdb3 -O3 ${CC_WARNING_FLAG}")
-set(CMAKE_CUDA_FLAGS_RELEASE "${CMAKE_CUDA_FLAGS_RELEASE}  -g -Xptxas -O3 -lineinfo -O3 -Xcompiler -O3,${NVCC_WARNING_FLAG},-g,-ggdb3,-fPIC")
+if(ENABLE_CUDA)
+  set(CMAKE_CUDA_FLAGS_RELEASE "${CMAKE_CUDA_FLAGS_RELEASE}  -g -Xptxas -O3 -lineinfo -O3 -Xcompiler -O3,${NVCC_WARNING_FLAG},-g,-ggdb3,-fPIC")
+endif()
 
 
 # setting output folder
@@ -168,7 +187,9 @@ find_package(glog CONFIG REQUIRED)
 
 
 if(OPENMP_FOUND)
-  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler -fopenmp")
+  if(ENABLE_CUDA)
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler -fopenmp")
+  endif()
   message(STATUS "add -fopenmp to compiler")
 else()
   message(FATAL_ERROR "without openmp the multi-node all2all will fail")

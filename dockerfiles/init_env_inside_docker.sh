@@ -1,18 +1,33 @@
 #!/bin/bash
-cd "$(dirname "$0")"
+SCRIPT_PATH="$(readlink -f "$0")"
+SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+cd "$SCRIPT_DIR"
 set -x
 set -e
-
-sudo service ssh start
 
 USER="$(whoami)"
 PROJECT_PATH="$(cd .. && pwd)"
 
+LOG_TS="$(date +%Y%m%d_%H%M%S)"
+LOG_FILE="${PROJECT_PATH}/init_env_${LOG_TS}.log"
+echo "Init env log: ${LOG_FILE}"
+exec > >(tee -a "${LOG_FILE}") 2>&1
+
+sudo service ssh start
+
 CMAKE_REQUIRE="-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
 GPU_ARCH="80"
 
+if [ "${CI_THROTTLE_MAKE:-0}" = "1" ]; then
+    MAKE_OPTS="${MAKE_OPTS:--j4 -O}"
+else
+    MAKE_OPTS="${MAKE_OPTS:--j20 -O}"
+fi
+export MAKEFLAGS="${MAKE_OPTS}"
+
 TORCH_VERSION="2.5.1"
 CUDA_VERSION="cu118"
+LIBTORCH_VARIANT="${LIBTORCH_VARIANT:-${CUDA_VERSION}}"  # default to CUDA variant (e.g., cu118); set to cpu to force CPU libtorch
 
 MARKER_DIR="/tmp/env_setup_markers"
 
@@ -29,14 +44,14 @@ source "${target_dir}/.bashrc"
 
 step_base() {
     sudo apt update
-    sudo apt install -y libmemcached-dev ca-certificates lsb-release wget python3-dev
+    sudo apt install -y libmemcached-dev ca-certificates lsb-release wget python3-dev pybind11-dev
     pip3 install pymemcache
 }
 
 step_liburing() {
     cd ${PROJECT_PATH}/third_party/liburing
     ./configure --cc=gcc --cxx=g++
-    make -j$(nproc)
+    make ${MAKE_OPTS}
     make liburing.pc
     sudo make install
 }
@@ -50,7 +65,7 @@ step_glog() {
     rm -rf _build
     mkdir -p _build
     cd _build
-    CXXFLAGS="-fPIC" cmake .. ${CMAKE_REQUIRE} && make -j20 && make DESTDIR=${PROJECT_PATH}/third_party/glog/glog-install-fPIC install
+    CXXFLAGS="-fPIC" cmake .. ${CMAKE_REQUIRE} && make ${MAKE_OPTS} && make ${MAKE_OPTS} DESTDIR=${PROJECT_PATH}/third_party/glog/glog-install-fPIC install
     sudo make install
     make clean
 }
@@ -62,7 +77,7 @@ step_fmt() {
     mkdir -p _build
     cd _build
     CXXFLAGS="-fPIC" cmake .. ${CMAKE_REQUIRE}
-    make -j20
+    make ${MAKE_OPTS}
     sudo make install
 }
 
@@ -77,8 +92,8 @@ step_folly() {
     mkdir -p _build
     cd _build
     CFLAGS='-fPIC' CXXFLAGS='-fPIC -Wl,-lrt' cmake .. -DCMAKE_INCLUDE_PATH=${PROJECT_PATH}/third_party/glog/glog-install-fPIC/usr/local/include -DCMAKE_LIBRARY_PATH=${PROJECT_PATH}/third_party/glog/glog-install-fPIC/usr/local/lib ${CMAKE_REQUIRE}
-    make -j20
-    make DESTDIR=${PROJECT_PATH}/third_party/folly/folly-install-fPIC install
+    make ${MAKE_OPTS}
+    make ${MAKE_OPTS} DESTDIR=${PROJECT_PATH}/third_party/folly/folly-install-fPIC install
     make clean
 }
 
@@ -93,7 +108,7 @@ step_gperftools() {
     mkdir -p _build
     cd _build
     CFLAGS='-fPIC' CXXFLAGS='-fPIC -Wl,-lrt' CC=/usr/bin/gcc CXX=/usr/bin/g++ cmake .. ${CMAKE_REQUIRE}
-    make -j20
+    make ${MAKE_OPTS}
     sudo make install
     make clean
 }
@@ -101,7 +116,7 @@ step_gperftools() {
 step_cityhash() {
     cd ${PROJECT_PATH}/third_party/cityhash/
     ./configure
-    make -j20
+    make ${MAKE_OPTS}
     sudo make install
     make clean
 }
@@ -134,8 +149,8 @@ step_spdk() {
     sudo make clean
     export PATH=$PATH:/var/spdk/dependencies/pip/bin
     sudo pip3 install pyelftools
-    make -j20
-    sudo env "PATH=/var/spdk/dependencies/pip/bin:$PATH" make install
+    make ${MAKE_OPTS}
+    sudo env "PATH=/var/spdk/dependencies/pip/bin:$PATH" make ${MAKE_OPTS} install
 }
 # #############################SPDK#############################
 
@@ -155,6 +170,7 @@ step_torch() {
 }
 
 step_arrow() {
+    mkdir -p ${PROJECT_PATH}/build
     cd ${PROJECT_PATH}/build
     wget https://apache.jfrog.io/artifactory/arrow/$(lsb_release --id --short | tr 'A-Z' 'a-z')/apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb
     sudo apt install -y -V ./apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb
@@ -167,7 +183,7 @@ step_cpptrace() {
     git checkout v0.3.1
     mkdir -p build && cd build
     cmake .. -DCMAKE_BUILD_TYPE=Release ${CMAKE_REQUIRE}
-    make -j
+    make ${MAKE_OPTS}
     sudo make install
 }
 
@@ -183,7 +199,14 @@ step_libtorch_abi() {
         return 0
     fi
 
-    wget -q https://download.pytorch.org/libtorch/${CUDA_VERSION}/libtorch-cxx11-abi-shared-with-deps-${TORCH_VERSION}%2B${CUDA_VERSION}.zip -O libtorch.zip
+    local url
+    if [ "${LIBTORCH_VARIANT}" = "cpu" ]; then
+        url="https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-${TORCH_VERSION}%2Bcpu.zip"
+    else
+        url="https://download.pytorch.org/libtorch/${LIBTORCH_VARIANT}/libtorch-cxx11-abi-shared-with-deps-${TORCH_VERSION}%2B${LIBTORCH_VARIANT}.zip"
+    fi
+
+    wget -q "${url}" -O libtorch.zip
 
     if [ $? -ne 0 ]; then
         return 1
@@ -197,6 +220,14 @@ step_libtorch_abi() {
 }
 
 step_HugeCTR() {
+    if [ "${SKIP_HUGECTR:-}" = "1" ]; then
+        echo "Skipping HugeCTR build because SKIP_HUGECTR=1"
+        return 0
+    fi
+    if ! command -v nvcc >/dev/null 2>&1; then
+        echo "Skipping HugeCTR build because nvcc (CUDA toolkit) is not available"
+        return 0
+    fi
     # find /usr -name "libparquet.so"
     # find /usr -name "properties.h" | grep "parquet/properties.h"
     cd ${PROJECT_PATH}/third_party/HugeCTR
@@ -206,7 +237,7 @@ step_HugeCTR() {
     cmake -DCMAKE_BUILD_TYPE=Release \
         ${CMAKE_REQUIRE} \
         ..
-    make embedding -j20
+    make ${MAKE_OPTS} embedding
     sudo mkdir -p /usr/local/hugectr/lib/
     sudo find . -name "*.so" -exec cp {} /usr/local/hugectr/lib/ \;
     make clean
@@ -225,8 +256,8 @@ step_GRPC() {
         -DCMAKE_INSTALL_PREFIX=$MY_INSTALL_DIR \
         $CMAKE_REQUIRE \
         ../..
-    make -j
-    make install -j
+    make ${MAKE_OPTS}
+    make ${MAKE_OPTS} install
     popd
 }
 
@@ -246,9 +277,19 @@ step_set_coredump() {
 # }
 
 step_libibverbs() {
+    if [ "${SKIP_LIBIBVERBS:-0}" = "1" ]; then
+        echo "Skipping libibverbs relink because SKIP_LIBIBVERBS=1"
+        return 0
+    fi
     cd /usr/lib/x86_64-linux-gnu
-    sudo unlink libibverbs.so
-    sudo cp -f libibverbs.so.1.14.39.0 libibverbs.so
+    local target
+    target=$(ls libibverbs.so.1.* 2>/dev/null | head -n 1)
+    if [ -z "${target}" ]; then
+        echo "Skipping libibverbs relink because libibverbs.so.1.* not found"
+        return 0
+    fi
+    sudo unlink libibverbs.so || true
+    sudo cp -f "${target}" libibverbs.so
 }
 
 step_brpc() {
@@ -259,11 +300,8 @@ step_brpc() {
     rm -rf _build
     mkdir _build && cd _build
     cmake .. -DCMAKE_BUILD_TYPE=Release ${CMAKE_REQUIRE} -DCMAKE_INSTALL_PREFIX=${PROJECT_PATH}/third_party/protobuf-install
-    make -j
-    make install
-    
-    cd ${PROJECT_PATH}/third_party/
-    git clone https://github.com/apache/brpc.git
+    make ${MAKE_OPTS}
+    make ${MAKE_OPTS} install
     
     # brpc
     cd ${PROJECT_PATH}/third_party/brpc
@@ -278,15 +316,14 @@ step_brpc() {
       ${CMAKE_REQUIRE} \
       -DCMAKE_INSTALL_PREFIX=${PROJECT_PATH}/third_party/brpc-install \
       -DWITH_GLOG=ON
-    make -j
-    make install
-    
+    make ${MAKE_OPTS}
+    make ${MAKE_OPTS} install
 }
 
 mkdir -p "${MARKER_DIR}"
 [ "$1" = "--clean" ]&&{ echo "Cleaning all markers..."; rm -rf "${MARKER_DIR:?}"; exit 0; };
 marker_path(){ echo "${MARKER_DIR}/${1}.done"; }
-steps=($(grep -oE '^step_[a-zA-Z0-9_]+\(\)' "$(readlink -f "$0")" | cut -d '(' -f1))
+steps=($(grep -oE '^step_[a-zA-Z0-9_]+\(\)' "$SCRIPT_PATH" | cut -d '(' -f1))
 for STEP in "${steps[@]}"; do MARKER=$(marker_path "$STEP"); [ -f "$MARKER" ]&&{ echo "Step $STEP: Skipping (already completed)"; }||{ echo "Step $STEP: Running..."; $STEP; touch "$MARKER"; }; done
 
 echo "Environment setup completed successfully."

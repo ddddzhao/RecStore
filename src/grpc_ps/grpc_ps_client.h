@@ -43,6 +43,7 @@ struct PrefetchBatch {
         batch_size_ = request_num;
         key_sizes_.resize(request_num);
         status_.resize(request_num);
+        contexts_.resize(request_num);
         requests_.resize(request_num);
         responses_.resize(request_num);
         response_readers_.resize(request_num);
@@ -53,6 +54,7 @@ struct PrefetchBatch {
     PrefetchBatch(PrefetchBatch&& other) noexcept
         : key_sizes_(std::move(other.key_sizes_)),
           status_(std::move(other.status_)),
+          contexts_(std::move(other.contexts_)),
           requests_(std::move(other.requests_)),
           responses_(std::move(other.responses_)),
           response_readers_(std::move(other.response_readers_)),
@@ -67,6 +69,7 @@ struct PrefetchBatch {
 
     std::vector<int> key_sizes_;
     std::vector<Status> status_;
+    std::vector<std::unique_ptr<ClientContext>> contexts_;
     std::vector<GetParameterRequest> requests_;
     std::vector<GetParameterResponse> responses_;
     std::vector<

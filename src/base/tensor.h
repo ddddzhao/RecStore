@@ -14,6 +14,7 @@ using float16_t = c10::Half;
 #include <string>
 #include <type_traits>
 #include <vector>
+#include <cstdint>
 
 namespace base {
 

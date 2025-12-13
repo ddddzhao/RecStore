@@ -276,15 +276,16 @@ class RecStoreEmbeddingBagCollection(torch.nn.Module):
                 issue_latency = t_wait_start - (self._fused_prefetch_issue_ts or t_wait_start)
                 self._prefetch_issue_latencies.append(issue_latency)
                 used_fused_prefetch = True
-                # Validate size matches
                 if all_embeddings.size(0) != fused_values_all.numel():
-                    logging.warning(
-                        f"[EBC] Fused prefetch result size mismatch: got {all_embeddings.size(0)}, expected {fused_values_all.numel()}, falling back to pull."
-                    )
-                    all_embeddings = self.kv_client.pull(name=self._master_config.name, ids=cpu_ids)
-                    if compute_device.type == 'cuda':
-                        all_embeddings = all_embeddings.to(compute_device)
-                    used_fused_prefetch = False
+                    unique_ids, inverse = torch.unique(fused_values_all, return_inverse=True)
+                    if all_embeddings.size(0) == unique_ids.size(0):
+                        all_embeddings = all_embeddings.index_select(0, inverse)
+                    else:
+                        logging.warning(f"[EBC] Fused prefetch result size mismatch: got {all_embeddings.size(0)}, expected {fused_values_all.numel()}, falling back to pull.")
+                        all_embeddings = self.kv_client.pull(name=self._master_config.name, ids=cpu_ids)
+                        if compute_device.type == 'cuda':
+                            all_embeddings = all_embeddings.to(compute_device)
+                        used_fused_prefetch = False
             elif len(self._prefetch_handles) > 0:
                 # Gather per-feature prefetched embeddings in the same order
                 per_feature_embs: List[torch.Tensor] = []
