@@ -44,7 +44,7 @@ jobs:
         run: |
           set -euo pipefail
           export DEBIAN_FRONTEND=noninteractive
-          bash dockerfiles/init_host_prereqs.sh
+          bash ci/env/init_host_prereqs.sh
 
       - name: Init env inside docker
         run: |
@@ -82,31 +82,26 @@ jobs:
           cd build
           make -j4
 
-      - name: Upload build directory
+      - name: Pack artifacts
+        run: |
+          set -euo pipefail
+          bash ci/pack/pack_artifact.sh build/packed-grpc-server.tar.gz build/bin/grpc_ps_server
+          bash ci/pack/pack_artifact.sh build/packed-recstore-ops.tar.gz build/lib/lib_recstore_ops.so
+
+      - name: Upload packed artifacts (bundle)
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: build-folder
-          path: build/
+          name: packed-bundle
+          path: |
+            build/packed-grpc-server.tar.gz
+            build/packed-recstore-ops.tar.gz
 
-      # - name: Configure CMake (Mock KV)
-      #   run: |
-      #     set -euo pipefail
-      #     mkdir -p build
-      #     cd build
-      #     cmake -DENABLE_CUDA=OFF -DCMAKE_BUILD_TYPE=Debug -DCMAKE_POLICY_VERSION_MINIMUM=3.5 .. -DUSE_FAKE_KVCLIENT=ON
-
-      # - name: Build (Mock KV)
-      #   run: |
-      #     set -euo pipefail
-      #     cd build
-      #     make -j4
-
-      # - name: Upload build directory (Mock KV)
-      #   if: success()
+      # - name: Upload build directory
+      #   if: always()
       #   uses: actions/upload-artifact@v4
       #   with:
-      #     name: build-folder-mock
+      #     name: build-folder
       #     path: build/
 
       - name: Upload build artifacts
@@ -119,124 +114,83 @@ jobs:
             build/CMakeCache.txt
             build/compile_commands.json
 
-      - name: Upload recstore ops library
-        if: success()
+  run-grpc-server:
+    name: Run Packed GRPC Server
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      TORCH_VERSION: "2.5.0"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          fetch-depth: 0
+
+      - name: Install host prerequisites
+        run: |
+          set -euo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+          bash ci/env/init_host_prereqs.sh
+        
+      - name: Download torch wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: torch-wheel
+          path: wheel
+
+      - name: Install wheel
+        run: |
+          set -euo pipefail
+          ls -la build/lib || true
+          WHL=$(ls -1 wheel/torch-${TORCH_VERSION}*linux_x86_64.whl | head -n1)
+          python3 -m pip install --no-cache-dir "$WHL"
+
+      - name: Download packed artifacts bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: packed-bundle
+          path: runner
+
+      - name: Extract package
+        run: |
+          set -euo pipefail
+          mkdir -p runner/extracted
+          tar -xzf runner/packed-grpc-server.tar.gz -C runner/extracted
+          tar -xzf runner/packed-recstore-ops.tar.gz -C runner/extracted
+          echo "Extracted contents:" && find runner/extracted -maxdepth 2 -type f -print
+
+      - name: Place RecStore OP into build/lib
+        run: |
+          set -euo pipefail
+          mkdir -p runner/extracted/package/lib
+          if [ -f runner/extracted/package/lib/lib_recstore_ops.so ]; then
+            echo "lib_recstore_ops.so already present in package/lib; skipping copy"
+          elif [ -f runner/extracted/package/deps/lib/lib_recstore_ops.so ]; then
+            cp runner/extracted/package/deps/lib/lib_recstore_ops.so runner/extracted/package/lib/
+          else
+            echo "lib_recstore_ops.so not found in packed recstore ops" && exit 1
+          fi
+
+      - name: Run grpc_ps_server
+        run: |
+          set -euo pipefail
+          PKG_ROOT=runner/extracted/package
+          python3 ci/pack/runner.py "${PKG_ROOT}" bin/grpc_ps_server --ready-pattern "listening on" --timeout 180 --log runner/logs/grpc_ps_server_run.log --inject-rpath --keep-alive
+
+      - name: Run ci/test/test_op.sh --mock
+        run: |
+          set -euo pipefail
+          bash ci/test/test_op.sh --mock
+
+      - name: Stop grpc_ps_server
+        run: |
+          set -euo pipefail
+          pkill -f grpc_ps_server || true
+
+      - name: Upload run logs
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: recstore-ops
-          path: build/lib/lib_recstore_ops.so
-
-  # test-mock:
-  #   name: Test OP Layer with Mock KV
-  #   needs: build
-  #   runs-on: ubuntu-latest
-  #   env:
-  #     TORCH_VERSION: "2.5.0"
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v4
-  #       with:
-  #         submodules: false
-  #         fetch-depth: 0
-
-  #     - name: Download mock build folder
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: build-folder-mock
-  #         path: build
-
-  #     - name: Download recstore ops (mock)
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: recstore-ops
-  #         path: ops
-
-  #     - name: Download torch wheel
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: torch-wheel
-  #         path: wheel
-
-  #     - name: Install host prerequisites
-  #       run: |
-  #         set -euo pipefail
-  #         export DEBIAN_FRONTEND=noninteractive
-  #         bash dockerfiles/init_host_prereqs.sh
-
-  #     - name: Install wheel
-  #       run: |
-  #         set -euo pipefail
-  #         ls -la build/lib || true
-  #         # Ensure lib_recstore_ops.so exists
-  #         if [ ! -f build/lib/lib_recstore_ops.so ]; then
-  #           mkdir -p build/lib
-  #           cp ops/lib_recstore_ops.so build/lib/
-  #         fi
-  #         WHL=$(ls -1 wheel/torch-${TORCH_VERSION}*linux_x86_64.whl | head -n1)
-  #         python3 -m pip install --no-cache-dir "$WHL"
-
-  #     - name: Run ci/test scripts
-  #       run: |
-  #         set -euo pipefail
-  #         for f in ci/test/*.sh; do
-  #           echo "Running $f";
-  #           bash "$f" --mock;
-  #         done
-
-  #     - name: Run CTest
-  #       run: |
-  #         set -euo pipefail
-  #         cd build
-  #         ctest --verbose
-
-  # test:
-  #   name: Test Storage Layer
-  #   needs: build
-  #   runs-on: ubuntu-latest
-  #   env:
-  #     TORCH_VERSION: "2.5.0"
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v4
-  #       with:
-  #         submodules: false
-  #         fetch-depth: 0
-
-  #     - name: Download mock build folder
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: build-folder
-  #         path: build
-
-  #     - name: Download torch wheel
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: torch-wheel
-  #         path: wheel
-
-  #     - name: Install host prerequisites
-  #       run: |
-  #         set -euo pipefail
-  #         export DEBIAN_FRONTEND=noninteractive
-  #         bash dockerfiles/init_host_prereqs.sh
-
-  #     - name: Install wheel
-  #       run: |
-  #         set -euo pipefail
-  #         ls -la build/lib || true
-  #         WHL=$(ls -1 wheel/torch-${TORCH_VERSION}*linux_x86_64.whl | head -n1)
-  #         python3 -m pip install --no-cache-dir "$WHL"
-
-  #     - name: Run ci/test scripts
-  #       run: |
-  #         set -euo pipefail
-  #         for f in ci/test/*.sh; do
-  #           echo "Running $f";
-  #           bash "$f";
-  #         done
-
-      # - name: Run CTest
-      #   run: |
-      #     set -euo pipefail
-      #     cd build
-      #     ctest --verbose
+          name: grpc-run-logs
+          path: runner/logs/
