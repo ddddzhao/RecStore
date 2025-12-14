@@ -132,6 +132,7 @@ jobs:
           set -euo pipefail
           export DEBIAN_FRONTEND=noninteractive
           bash ci/env/init_host_prereqs.sh
+          bash ci/fetch_ci.sh
         
       - name: Download torch wheel
         uses: actions/download-artifact@v4
@@ -171,6 +172,12 @@ jobs:
           else
             echo "lib_recstore_ops.so not found in packed recstore ops" && exit 1
           fi
+          mkdir -p build/lib
+          cp -f runner/extracted/package/lib/lib_recstore_ops.so build/lib/
+          if [ -d runner/extracted/package/deps/lib ]; then
+            cp -f runner/extracted/package/deps/lib/*.so* build/lib/ || true
+            echo "Copied runtime deps (*.so*) to build/lib"
+          fi
 
       - name: Fix config to reduce resource usage
         run: |
@@ -198,7 +205,7 @@ jobs:
           echo "===== grpc_ps_server_run.log ====="
           cat runner/logs/grpc_ps_server_run.log || true
 
-      - name: Run ci/test/test_op.sh --mock
+      - name: Run ci/test/test_op.sh
         run: |
           set -euo pipefail
           bash ci/test/test_op.sh --mock

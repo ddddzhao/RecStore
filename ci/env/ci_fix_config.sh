@@ -11,8 +11,8 @@ if [[ -f "${CONFIG_JSON_PATH}" ]]; then
             | .cache_ps.max_batch_keys_size = 128
             | .cache_ps.num_threads = 4
             | .distributed_client.max_keys_per_request = 32
-            | .cache_ps.base_kv_config.value_type = "DRAM"
             | .cache_ps.base_kv_config.index_type = "DRAM"
+            | .cache_ps.base_kv_config.value_type = "SSD"
             | .cache_ps.base_kv_config.type = "DRAM"
             | .cache_ps.base_kv_config.queue_size = 1024' "${CONFIG_JSON_PATH}" > "${TMP_JSON}" && mv "${TMP_JSON}" "${CONFIG_JSON_PATH}"
         echo "Updated config fields in recstore_config.json using jq."
@@ -28,8 +28,8 @@ try:
     data['cache_ps']['max_batch_keys_size'] = 128
     data['cache_ps']['num_threads'] = 4
     data['distributed_client']['max_keys_per_request'] = 32
-    data['cache_ps']['base_kv_config']['value_type'] = "DRAM"
     data['cache_ps']['base_kv_config']['index_type'] = "DRAM"
+    data['cache_ps']['base_kv_config']['value_type'] = "SSD"
     data['cache_ps']['base_kv_config']['type'] = "DRAM"
     data['cache_ps']['base_kv_config']['queue_size'] = 1024
 except Exception as e:
