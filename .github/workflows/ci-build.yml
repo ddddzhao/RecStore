@@ -172,11 +172,31 @@ jobs:
             echo "lib_recstore_ops.so not found in packed recstore ops" && exit 1
           fi
 
+      - name: Fix config to reduce resource usage
+        run: |
+          set -euo pipefail
+          bash ci/env/ci_fix_config.sh || true
+
+      - name: Show recstore_config after fix
+        run: |
+          set -euo pipefail
+          echo "===== recstore_config.json (after fix) ====="
+          cat recstore_config.json || true
+
       - name: Run grpc_ps_server
         run: |
           set -euo pipefail
+          export GLOG_logtostderr=1
+          export GLOG_v=1
           PKG_ROOT=runner/extracted/package
           python3 ci/pack/runner.py "${PKG_ROOT}" bin/grpc_ps_server --ready-pattern "listening on" --timeout 180 --log runner/logs/grpc_ps_server_run.log --inject-rpath --keep-alive
+
+      - name: Show grpc_ps_server log
+        if: always()
+        run: |
+          set -euo pipefail
+          echo "===== grpc_ps_server_run.log ====="
+          cat runner/logs/grpc_ps_server_run.log || true
 
       - name: Run ci/test/test_op.sh --mock
         run: |

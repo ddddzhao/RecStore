@@ -1,5 +1,6 @@
 #include "framework/op.h"
 #include "grpc_ps/grpc_ps_client.h"
+#include "base/factory.h"
 #include <iostream>
 #include <stdexcept>
 #include <vector>
@@ -131,7 +132,20 @@ BasePSClient* create_ps_client_from_config(const json& config) {
     client_config = json{{"host", "127.0.0.1"}, {"port", 15000}, {"shard", 0}};
   }
 
-  return new GRPCParameterClient(client_config);
+  std::string ps_type = "GRPC";
+  try {
+    if (config.contains("cache_ps") && config["cache_ps"].contains("ps_type")) {
+      ps_type = config["cache_ps"]["ps_type"].get<std::string>();
+    }
+  } catch (...) {
+  }
+
+  std::string type_key = (ps_type == "BRPC") ? "brpc" : "grpc";
+  BasePSClient* client = base::Factory<BasePSClient, json>::NewInstance(type_key, client_config);
+  if (client == nullptr) {
+    return new GRPCParameterClient(client_config);
+  }
+  return client;
 }
 
 KVClientOp::KVClientOp() {

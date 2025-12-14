@@ -4,7 +4,9 @@ find_package(Python3 COMPONENTS Interpreter Development)
 add_subdirectory(proto)
 
 
-add_library(grpc_ps_client
+set(BUILD_SHARED_LIBS ON)
+
+add_library(grpc_ps_client SHARED
     grpc_ps_client.cpp grpc_ps_client.h
 )
 
@@ -143,7 +145,7 @@ endif()
 if(brpc_FOUND)
     message(STATUS "Building bRPC clients and servers")
     
-    add_library(brpc_ps_client
+    add_library(brpc_ps_client SHARED
         brpc_ps_client.cpp brpc_ps_client.h
     )
     target_include_directories(brpc_ps_client PUBLIC ${BRPC_INCLUDE_PATH})
