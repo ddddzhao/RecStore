@@ -331,7 +331,7 @@ void Settings::parseArguments(int argc, char** argv) {
            "0"))},
 #else
   //{'c', OptionPtr(new Option<const char*>(controllerPath, "path", "ctrl", "NVM
-  //controller device path"))},
+  // controller device path"))},
 #endif
       {'g',
        OptionPtr(new Option<uint32_t>(
@@ -348,7 +348,7 @@ void Settings::parseArguments(int argc, char** argv) {
       //{'B', OptionPtr(new Option<bool>(doubleBuffered, "bool",
       //"double-buffer", "double buffer disk reads", "false"))},
       //{'r', OptionPtr(new Option<bool>(stats, "bool", "stats", "print
-      //statistics", "false"))},
+      // statistics", "false"))},
       {'n',
        OptionPtr(new Range(
            numReqs,
