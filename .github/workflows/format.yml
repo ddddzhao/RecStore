@@ -31,6 +31,7 @@ jobs:
         with:
           submodules: false
           fetch-depth: 0
+          persist-credentials: true
 
       - name: Install clang-format
         run: |
@@ -77,8 +78,18 @@ jobs:
           git commit -am "chore: apply clang-format"
           git push
 
-      - name: Fail if formatting needed (PR only)
-        if: steps.format_diff.outputs.clean == 'false' && github.event_name == 'pull_request'
+      - name: Auto-commit on PR (same repo)
+        if: steps.format_diff.outputs.clean == 'false' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore: apply clang-format"
+          # Push back to the PR branch
+          git push origin "HEAD:${{ github.head_ref }}"
+
+      - name: Fail if formatting needed (PR from fork)
+        if: steps.format_diff.outputs.clean == 'false' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
         run: |
           set -euo pipefail
           echo "Formatting changes required. Download and apply the clang-format-patch artifact." >&2
