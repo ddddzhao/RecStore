@@ -13,20 +13,25 @@
 #include "torch_utils.h"
 
 namespace recstore {
-void RegisterKGCacheController(torch::Library &m);
+void RegisterKGCacheController(torch::Library& m);
 
-void merge_op(at::Tensor merge_dst, const at::Tensor retrieved,
+void merge_op(at::Tensor merge_dst,
+              const at::Tensor retrieved,
               const at::Tensor missing_index);
 
-void uva_cache_query_op(at::Tensor merge_dst, const at::Tensor id_tensor,
-                        const at::Tensor hbm_tensor,
-                        const at::Tensor dram_tensor,
-                        const long cached_start_key, const long cached_end_key);
+void uva_cache_query_op(
+    at::Tensor merge_dst,
+    const at::Tensor id_tensor,
+    const at::Tensor hbm_tensor,
+    const at::Tensor dram_tensor,
+    const long cached_start_key,
+    const long cached_end_key);
 
 // renumbering all_rank_hotsets from 0 to sum len(all_rank_hotsets)
-void ConstructRenumberingDict(torch::Tensor renumbering_dict, int64_t nr_world,
+void ConstructRenumberingDict(torch::Tensor renumbering_dict,
+                              int64_t nr_world,
                               std::vector<torch::Tensor> all_rank_hotsets) {
-  int64_t n_entities = renumbering_dict.size(0);
+  int64_t n_entities             = renumbering_dict.size(0);
   auto renumbering_dict_accessor = renumbering_dict.accessor<int64_t, 1>();
   std::vector<int64_t> start_ids(nr_world + 1, 0);
   // 计算每个 rank 的起始 ID
@@ -37,13 +42,13 @@ void ConstructRenumberingDict(torch::Tensor renumbering_dict, int64_t nr_world,
 // 并行处理每个 rank 的 hotset
 #pragma omp parallel for schedule(dynamic)
   for (int rank = 0; rank < nr_world; rank++) {
-    torch::Tensor rank_hotset = all_rank_hotsets[rank];
-    int64_t *rank_hotset_data_ptr = rank_hotset.data_ptr<int64_t>();
-    int64_t numel = rank_hotset.numel();
-    int64_t start_id = start_ids[rank];
+    torch::Tensor rank_hotset     = all_rank_hotsets[rank];
+    int64_t* rank_hotset_data_ptr = rank_hotset.data_ptr<int64_t>();
+    int64_t numel                 = rank_hotset.numel();
+    int64_t start_id              = start_ids[rank];
 
     for (int64_t i = 0; i < numel; i++) {
-      int64_t each = rank_hotset_data_ptr[i];
+      int64_t each                    = rank_hotset_data_ptr[i];
       renumbering_dict_accessor[each] = start_id + i;
     }
   }
@@ -67,14 +72,14 @@ void init_folly() {
 }
 
 class ZipfianTorchFiller : public torch::CustomClassHolder {
- public:
+public:
   ZipfianTorchFiller(int64_t capacity, double zipf_theta) {
     int tid = std::hash<std::thread::id>{}(std::this_thread::get_id()) % 100;
-    mehcached_zipf_init(&state, capacity, zipf_theta,
-                        (rdtsc() & 0x0000ffffffffffffull) ^ tid);
+    mehcached_zipf_init(
+        &state, capacity, zipf_theta, (rdtsc() & 0x0000ffffffffffffull) ^ tid);
   }
 
-  void fillArray(int64_t *buffer, int64_t count) {
+  void fillArray(int64_t* buffer, int64_t count) {
     for (int64_t i = 0; i < count; i++) {
       buffer[i] = mehcached_zipf_next(&state) + 1;
       // buffer[i] = base::GetHash(mehcached_zipf_next(&state) + 1) % capacity;
@@ -82,12 +87,12 @@ class ZipfianTorchFiller : public torch::CustomClassHolder {
   }
 
   void fillArrayTorch(torch::Tensor buffer) {
-    int64_t count = buffer.numel();
-    int64_t *buffer_ptr = buffer.data_ptr<int64_t>();
+    int64_t count       = buffer.numel();
+    int64_t* buffer_ptr = buffer.data_ptr<int64_t>();
     fillArray(buffer_ptr, count);
   }
 
- private:
+private:
   static __inline__ unsigned long long rdtsc(void) {
     unsigned hi, lo;
     __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
@@ -96,16 +101,18 @@ class ZipfianTorchFiller : public torch::CustomClassHolder {
   struct zipf_gen_state state;
 };
 
-void RegisterIPCBarrier(torch::Library &m);
+void RegisterIPCBarrier(torch::Library& m);
 
-torch::optional<torch::Tensor> NarrowShapeTensor(torch::Tensor base,
-                                                 const at::IntArrayRef shape,
-                                                 const at::ScalarType dtype) {
-  int64_t total_bytes = base.numel() * base.element_size();
+torch::optional<torch::Tensor>
+NarrowShapeTensor(torch::Tensor base,
+                  const at::IntArrayRef shape,
+                  const at::ScalarType dtype) {
+  int64_t total_bytes    = base.numel() * base.element_size();
   int64_t required_bytes = at::elementSize(dtype) * TensorUtil::numel(shape);
   CHECK_GE(total_bytes, required_bytes);
   auto tensor = torch::from_blob(
-      base.data_ptr(), shape,
+      base.data_ptr(),
+      shape,
       torch::TensorOptions().dtype(dtype).device(base.device()));
   return tensor;
 }
@@ -141,4 +148,4 @@ TORCH_LIBRARY(librecstore_pytorch, m) {
   RegisterIPCBarrier(m);
 }
 
-}  // namespace recstore
+} // namespace recstore

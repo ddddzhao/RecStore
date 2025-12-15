@@ -5,11 +5,11 @@
 
 namespace recstore {
 class BaseParameterServer {
- public:
+public:
   virtual void Init(const json& config) { config_ = config; }
   virtual void Run() = 0;
 
- protected:
+protected:
   json config_;
 };
-}  // namespace recstore
+} // namespace recstore

@@ -20,414 +20,453 @@ using recstoreps_brpc::CommandRequest;
 using recstoreps_brpc::CommandResponse;
 using recstoreps_brpc::GetParameterRequest;
 using recstoreps_brpc::GetParameterResponse;
+using recstoreps_brpc::InitEmbeddingTableRequest;
+using recstoreps_brpc::InitEmbeddingTableResponse;
 using recstoreps_brpc::PSCommand;
 using recstoreps_brpc::PutParameterRequest;
 using recstoreps_brpc::PutParameterResponse;
 using recstoreps_brpc::UpdateParameterRequest;
 using recstoreps_brpc::UpdateParameterResponse;
-using recstoreps_brpc::InitEmbeddingTableRequest;
-using recstoreps_brpc::InitEmbeddingTableResponse;
 
 DEFINE_int32(brpc_timeout_ms, 5000, "brpc request timeout in milliseconds");
 DEFINE_int32(brpc_max_retry, 3, "brpc max retry times");
 DEFINE_bool(parameter_client_random_init_brpc, false, "");
 
 // 新的构造函数，接收 json 配置参数
-BRPCParameterClient::BRPCParameterClient(json config) : recstore::BasePSClient(config) {
-    host_ = config.value("host", "localhost");
-    port_ = config.value("port", 15000);
-    shard_ = config.value("shard", 0);
-    timeout_ms_ = config.value("timeout_ms", FLAGS_brpc_timeout_ms);
-    max_retry_ = config.value("max_retry", FLAGS_brpc_max_retry);
-    
-    Initialize();
-    
-    // 初始化 bRPC channel
-    channel_ = std::make_shared<brpc::Channel>();
-    brpc::ChannelOptions options;
-    options.timeout_ms = timeout_ms_;
-    options.max_retry = max_retry_;
-    
-    std::string server_addr = fmt::format("{}:{}", host_, port_);
-    if (channel_->Init(server_addr.c_str(), &options) != 0) {
-        LOG(ERROR) << "Failed to initialize bRPC channel to " << server_addr;
-    } else {
-        LOG(INFO) << "Initialized bRPC PS Client Shard " << shard_ << " at " << server_addr;
-    }
+BRPCParameterClient::BRPCParameterClient(json config)
+    : recstore::BasePSClient(config) {
+  host_       = config.value("host", "localhost");
+  port_       = config.value("port", 15000);
+  shard_      = config.value("shard", 0);
+  timeout_ms_ = config.value("timeout_ms", FLAGS_brpc_timeout_ms);
+  max_retry_  = config.value("max_retry", FLAGS_brpc_max_retry);
+
+  Initialize();
+
+  // 初始化 bRPC channel
+  channel_ = std::make_shared<brpc::Channel>();
+  brpc::ChannelOptions options;
+  options.timeout_ms = timeout_ms_;
+  options.max_retry  = max_retry_;
+
+  std::string server_addr = fmt::format("{}:{}", host_, port_);
+  if (channel_->Init(server_addr.c_str(), &options) != 0) {
+    LOG(ERROR) << "Failed to initialize bRPC channel to " << server_addr;
+  } else {
+    LOG(INFO) << "Initialized bRPC PS Client Shard " << shard_ << " at "
+              << server_addr;
+  }
 }
 
 // 保留原有的构造函数以保持向后兼容
-BRPCParameterClient::BRPCParameterClient(const std::string& host, int port, int shard)
-    : recstore::BasePSClient(json{{"host", host}, {"port", port}, {"shard", shard}}),
+BRPCParameterClient::BRPCParameterClient(
+    const std::string& host, int port, int shard)
+    : recstore::BasePSClient(
+          json{{"host", host}, {"port", port}, {"shard", shard}}),
       host_(host),
       port_(port),
       shard_(shard),
       timeout_ms_(FLAGS_brpc_timeout_ms),
       max_retry_(FLAGS_brpc_max_retry) {
-    Initialize();
-    
-    channel_ = std::make_shared<brpc::Channel>();
-    brpc::ChannelOptions options;
-    options.timeout_ms = timeout_ms_;
-    options.max_retry = max_retry_;
-    
-    std::string server_addr = fmt::format("{}:{}", host, port);
-    if (channel_->Init(server_addr.c_str(), &options) != 0) {
-        LOG(ERROR) << "Failed to initialize bRPC channel to " << server_addr;
-    } else {
-        LOG(INFO) << "Initialized bRPC PS Client Shard " << shard_ << " at " << server_addr;
-    }
+  Initialize();
+
+  channel_ = std::make_shared<brpc::Channel>();
+  brpc::ChannelOptions options;
+  options.timeout_ms = timeout_ms_;
+  options.max_retry  = max_retry_;
+
+  std::string server_addr = fmt::format("{}:{}", host, port);
+  if (channel_->Init(server_addr.c_str(), &options) != 0) {
+    LOG(ERROR) << "Failed to initialize bRPC channel to " << server_addr;
+  } else {
+    LOG(INFO) << "Initialized bRPC PS Client Shard " << shard_ << " at "
+              << server_addr;
+  }
 }
 
-bool BRPCParameterClient::Initialize() {
+bool BRPCParameterClient::Initialize() { return true; }
+
+int BRPCParameterClient::GetParameter(const base::ConstArray<uint64_t>& keys,
+                                      float* values) {
+  if (FLAGS_parameter_client_random_init_brpc) {
+    CHECK(0) << "todo implement";
     return true;
-}
+  }
 
-int BRPCParameterClient::GetParameter(const base::ConstArray<uint64_t>& keys, float* values) {
-    if (FLAGS_parameter_client_random_init_brpc) {
-        CHECK(0) << "todo implement";
-        return true;
+  int request_num =
+      (keys.Size() + MAX_PARAMETER_BATCH_BRPC - 1) / MAX_PARAMETER_BATCH_BRPC;
+  std::vector<GetParameterRequest> requests(request_num);
+  std::vector<GetParameterResponse> responses(request_num);
+  std::vector<brpc::Controller> controllers(request_num);
+  std::vector<int> key_sizes;
+
+  // 创建 stub
+  recstoreps_brpc::ParameterService_Stub stub(channel_.get());
+
+  // 发送异步请求
+  for (int start = 0, index = 0; start < keys.Size();
+       start += MAX_PARAMETER_BATCH_BRPC, ++index) {
+    int key_size =
+        std::min((int)(keys.Size() - start), MAX_PARAMETER_BATCH_BRPC);
+    key_sizes.push_back(key_size);
+
+    requests[index].set_keys(reinterpret_cast<const char*>(&keys[start]),
+                             sizeof(uint64_t) * key_size);
+
+    google::protobuf::Closure* done = brpc::NewCallback([]() { /* 空回调 */ });
+    stub.GetParameter(
+        &controllers[index], &requests[index], &responses[index], done);
+  }
+
+  // 等待所有请求完成
+  for (int i = 0; i < request_num; ++i) {
+    brpc::Join(controllers[i].call_id());
+    if (controllers[i].Failed()) {
+      LOG(ERROR) << "bRPC GetParameter failed: " << controllers[i].ErrorText();
+      return false;
+    }
+  }
+
+  // 解析结果
+  size_t get_embedding_acc = 0;
+  int old_dimension        = -1;
+
+  for (int i = 0; i < responses.size(); ++i) {
+    auto& response  = responses[i];
+    int key_size    = key_sizes[i];
+    auto parameters = reinterpret_cast<const ParameterCompressReader*>(
+        response.parameter_value().data());
+
+    if (parameters->size != key_size) {
+      LOG(ERROR) << "GetParameter error: " << parameters->size << " vs "
+                 << key_size;
+      return false;
     }
 
-    int request_num = (keys.Size() + MAX_PARAMETER_BATCH_BRPC - 1) / MAX_PARAMETER_BATCH_BRPC;
-    std::vector<GetParameterRequest> requests(request_num);
-    std::vector<GetParameterResponse> responses(request_num);
-    std::vector<brpc::Controller> controllers(request_num);
-    std::vector<int> key_sizes;
-
-    // 创建 stub
-    recstoreps_brpc::ParameterService_Stub stub(channel_.get());
-
-    // 发送异步请求
-    for (int start = 0, index = 0; start < keys.Size(); start += MAX_PARAMETER_BATCH_BRPC, ++index) {
-        int key_size = std::min((int)(keys.Size() - start), MAX_PARAMETER_BATCH_BRPC);
-        key_sizes.push_back(key_size);
-        
-        requests[index].set_keys(reinterpret_cast<const char*>(&keys[start]), sizeof(uint64_t) * key_size);
-        
-        google::protobuf::Closure* done = brpc::NewCallback([](){ /* 空回调 */ });
-        stub.GetParameter(&controllers[index], &requests[index], &responses[index], done);
+    for (int index = 0; index < parameters->item_size(); ++index) {
+      auto item = parameters->item(index);
+      if (item->dim != 0) {
+        if (old_dimension == -1)
+          old_dimension = item->dim;
+        CHECK_EQ(item->dim, old_dimension);
+        std::copy_n(
+            item->embedding, item->dim, values + item->dim * get_embedding_acc);
+      } else {
+        FB_LOG_EVERY_MS(ERROR, 2000)
+            << "error; not find key " << keys[get_embedding_acc] << " in ps";
+      }
+      get_embedding_acc++;
     }
-
-    // 等待所有请求完成
-    for (int i = 0; i < request_num; ++i) {
-        brpc::Join(controllers[i].call_id());
-        if (controllers[i].Failed()) {
-            LOG(ERROR) << "bRPC GetParameter failed: " << controllers[i].ErrorText();
-            return false;
-        }
-    }
-
-    // 解析结果
-    size_t get_embedding_acc = 0;
-    int old_dimension = -1;
-
-    for (int i = 0; i < responses.size(); ++i) {
-        auto& response = responses[i];
-        int key_size = key_sizes[i];
-        auto parameters = reinterpret_cast<const ParameterCompressReader*>(response.parameter_value().data());
-
-        if (parameters->size != key_size) {
-            LOG(ERROR) << "GetParameter error: " << parameters->size << " vs " << key_size;
-            return false;
-        }
-
-        for (int index = 0; index < parameters->item_size(); ++index) {
-            auto item = parameters->item(index);
-            if (item->dim != 0) {
-                if (old_dimension == -1) old_dimension = item->dim;
-                CHECK_EQ(item->dim, old_dimension);
-                std::copy_n(item->embedding, item->dim, values + item->dim * get_embedding_acc);
-            } else {
-                FB_LOG_EVERY_MS(ERROR, 2000) << "error; not find key " << keys[get_embedding_acc] << " in ps";
-            }
-            get_embedding_acc++;
-        }
-    }
-    return true;
+  }
+  return true;
 }
 
 int BRPCParameterClient::GetParameter(const base::ConstArray<uint64_t>& keys,
                                       std::vector<std::vector<float>>* values) {
-    if (FLAGS_parameter_client_random_init_brpc) {
-        values->clear();
-        values->reserve(keys.Size());
-        for (size_t i = 0; i < keys.Size(); i++)
-            values->emplace_back(std::vector<float>(128, 0.1));
-        return true;
-    }
-
+  if (FLAGS_parameter_client_random_init_brpc) {
     values->clear();
     values->reserve(keys.Size());
-
-    int request_num = (keys.Size() + MAX_PARAMETER_BATCH_BRPC - 1) / MAX_PARAMETER_BATCH_BRPC;
-    std::vector<GetParameterRequest> requests(request_num);
-    std::vector<GetParameterResponse> responses(request_num);
-    std::vector<brpc::Controller> controllers(request_num);
-    std::vector<int> key_sizes;
-
-    recstoreps_brpc::ParameterService_Stub stub(channel_.get());
-
-    // 发送异步请求
-    for (int start = 0, index = 0; start < keys.Size(); start += MAX_PARAMETER_BATCH_BRPC, ++index) {
-        int key_size = std::min((int)(keys.Size() - start), MAX_PARAMETER_BATCH_BRPC);
-        key_sizes.push_back(key_size);
-        
-        requests[index].set_keys(reinterpret_cast<const char*>(&keys[start]), sizeof(uint64_t) * key_size);
-        
-        google::protobuf::Closure* done = brpc::NewCallback([](){ /* 空回调 */ });
-        stub.GetParameter(&controllers[index], &requests[index], &responses[index], done);
-    }
-
-    // 等待所有请求完成
-    for (int i = 0; i < request_num; ++i) {
-        brpc::Join(controllers[i].call_id());
-        if (controllers[i].Failed()) {
-            LOG(ERROR) << "bRPC GetParameter failed: " << controllers[i].ErrorText();
-            return false;
-        }
-    }
-
-    // 解析结果
-    for (int i = 0; i < responses.size(); ++i) {
-        auto& response = responses[i];
-        int key_size = key_sizes[i];
-        auto parameters = reinterpret_cast<const ParameterCompressReader*>(response.parameter_value().data());
-
-        if (unlikely(parameters->size != key_size)) {
-            LOG(ERROR) << "GetParameter error: " << parameters->size << " vs " << key_size;
-            return false;
-        }
-
-        for (int index = 0; index < parameters->item_size(); ++index) {
-            auto item = parameters->item(index);
-            if (item->dim != 0) {
-                values->emplace_back(std::vector<float>(item->embedding, item->embedding + item->dim));
-            } else {
-                values->emplace_back(std::vector<float>(0));
-            }
-        }
-    }
+    for (size_t i = 0; i < keys.Size(); i++)
+      values->emplace_back(std::vector<float>(128, 0.1));
     return true;
+  }
+
+  values->clear();
+  values->reserve(keys.Size());
+
+  int request_num =
+      (keys.Size() + MAX_PARAMETER_BATCH_BRPC - 1) / MAX_PARAMETER_BATCH_BRPC;
+  std::vector<GetParameterRequest> requests(request_num);
+  std::vector<GetParameterResponse> responses(request_num);
+  std::vector<brpc::Controller> controllers(request_num);
+  std::vector<int> key_sizes;
+
+  recstoreps_brpc::ParameterService_Stub stub(channel_.get());
+
+  // 发送异步请求
+  for (int start = 0, index = 0; start < keys.Size();
+       start += MAX_PARAMETER_BATCH_BRPC, ++index) {
+    int key_size =
+        std::min((int)(keys.Size() - start), MAX_PARAMETER_BATCH_BRPC);
+    key_sizes.push_back(key_size);
+
+    requests[index].set_keys(reinterpret_cast<const char*>(&keys[start]),
+                             sizeof(uint64_t) * key_size);
+
+    google::protobuf::Closure* done = brpc::NewCallback([]() { /* 空回调 */ });
+    stub.GetParameter(
+        &controllers[index], &requests[index], &responses[index], done);
+  }
+
+  // 等待所有请求完成
+  for (int i = 0; i < request_num; ++i) {
+    brpc::Join(controllers[i].call_id());
+    if (controllers[i].Failed()) {
+      LOG(ERROR) << "bRPC GetParameter failed: " << controllers[i].ErrorText();
+      return false;
+    }
+  }
+
+  // 解析结果
+  for (int i = 0; i < responses.size(); ++i) {
+    auto& response  = responses[i];
+    int key_size    = key_sizes[i];
+    auto parameters = reinterpret_cast<const ParameterCompressReader*>(
+        response.parameter_value().data());
+
+    if (unlikely(parameters->size != key_size)) {
+      LOG(ERROR) << "GetParameter error: " << parameters->size << " vs "
+                 << key_size;
+      return false;
+    }
+
+    for (int index = 0; index < parameters->item_size(); ++index) {
+      auto item = parameters->item(index);
+      if (item->dim != 0) {
+        values->emplace_back(
+            std::vector<float>(item->embedding, item->embedding + item->dim));
+      } else {
+        values->emplace_back(std::vector<float>(0));
+      }
+    }
+  }
+  return true;
 }
 
 static void OnPrefetchDone(BrpcPrefetchBatch* batch) {
-    batch->completed_count_++;
+  batch->completed_count_++;
 }
 
-uint64_t BRPCParameterClient::PrefetchParameter(const base::ConstArray<uint64_t>& keys) {
-    uint64_t prefetch_id = next_prefetch_id_++;
-    int request_num = (keys.Size() + MAX_PARAMETER_BATCH_BRPC - 1) / MAX_PARAMETER_BATCH_BRPC;
+uint64_t
+BRPCParameterClient::PrefetchParameter(const base::ConstArray<uint64_t>& keys) {
+  uint64_t prefetch_id = next_prefetch_id_++;
+  int request_num =
+      (keys.Size() + MAX_PARAMETER_BATCH_BRPC - 1) / MAX_PARAMETER_BATCH_BRPC;
 
-    // 在 map 中构造对象，以保证地址稳定
-    auto it = prefetch_batches_.emplace(prefetch_id, request_num).first;
-    struct BrpcPrefetchBatch* pb = &it->second;
+  // 在 map 中构造对象，以保证地址稳定
+  auto it = prefetch_batches_.emplace(prefetch_id, request_num).first;
+  struct BrpcPrefetchBatch* pb = &it->second;
 
-    recstoreps_brpc::ParameterService_Stub stub(channel_.get());
+  recstoreps_brpc::ParameterService_Stub stub(channel_.get());
 
-    for (int start = 0, index = 0; start < keys.Size(); start += MAX_PARAMETER_BATCH_BRPC, ++index) {
-        int key_size = std::min((int)(keys.Size() - start), MAX_PARAMETER_BATCH_BRPC);
-        pb->key_sizes_[index] = key_size;
+  for (int start = 0, index = 0; start < keys.Size();
+       start += MAX_PARAMETER_BATCH_BRPC, ++index) {
+    int key_size =
+        std::min((int)(keys.Size() - start), MAX_PARAMETER_BATCH_BRPC);
+    pb->key_sizes_[index] = key_size;
 
-        GetParameterRequest request;
-        request.set_keys(reinterpret_cast<const char*>(&keys[start]), sizeof(uint64_t) * key_size);
+    GetParameterRequest request;
+    request.set_keys(reinterpret_cast<const char*>(&keys[start]),
+                     sizeof(uint64_t) * key_size);
 
-        pb->controllers_[index] = std::make_unique<brpc::Controller>();
-        
-        google::protobuf::Closure* done = brpc::NewCallback(OnPrefetchDone, pb);
-        stub.GetParameter(pb->controllers_[index].get(), &request, &pb->responses_[index], done);
-    }
+    pb->controllers_[index] = std::make_unique<brpc::Controller>();
 
-    return prefetch_id;
+    google::protobuf::Closure* done = brpc::NewCallback(OnPrefetchDone, pb);
+    stub.GetParameter(
+        pb->controllers_[index].get(), &request, &pb->responses_[index], done);
+  }
+
+  return prefetch_id;
 }
 
 bool BRPCParameterClient::IsPrefetchDone(uint64_t prefetch_id) {
-    auto it = prefetch_batches_.find(prefetch_id);
-    if (it == prefetch_batches_.end()) {
-        LOG(ERROR) << "Invalid prefetch_id: " << prefetch_id;
-        return false;
-    }
+  auto it = prefetch_batches_.find(prefetch_id);
+  if (it == prefetch_batches_.end()) {
+    LOG(ERROR) << "Invalid prefetch_id: " << prefetch_id;
+    return false;
+  }
 
-    auto& pb = it->second;
-    
-    return pb.completed_count_ == pb.batch_size_;
+  auto& pb = it->second;
+
+  return pb.completed_count_ == pb.batch_size_;
 }
 
 void BRPCParameterClient::WaitForPrefetch(uint64_t prefetch_id) {
-    while (!IsPrefetchDone(prefetch_id)) {
-        // std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        // 可以考虑使用 bthread_usleep 或者其他机制，但这里简单轮询
-    }
+  while (!IsPrefetchDone(prefetch_id)) {
+    // std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    // 可以考虑使用 bthread_usleep 或者其他机制，但这里简单轮询
+  }
 }
 
-bool BRPCParameterClient::GetPrefetchResult(uint64_t prefetch_id, std::vector<std::vector<float>>* values) {
-    auto it = prefetch_batches_.find(prefetch_id);
-    if (it == prefetch_batches_.end()) {
-        LOG(ERROR) << "Invalid prefetch_id: " << prefetch_id;
-        return false;
+bool BRPCParameterClient::GetPrefetchResult(
+    uint64_t prefetch_id, std::vector<std::vector<float>>* values) {
+  auto it = prefetch_batches_.find(prefetch_id);
+  if (it == prefetch_batches_.end()) {
+    LOG(ERROR) << "Invalid prefetch_id: " << prefetch_id;
+    return false;
+  }
+
+  auto& pb        = it->second;
+  int request_num = pb.batch_size_;
+
+  values->clear();
+  int keys_size = 0;
+  for (const auto& size : pb.key_sizes_) {
+    keys_size += size;
+  }
+  values->reserve(keys_size);
+
+  for (int i = 0; i < request_num; ++i) {
+    if (pb.controllers_[i]->Failed()) {
+      LOG(ERROR) << "Prefetch request failed: "
+                 << pb.controllers_[i]->ErrorText();
+      return false;
     }
 
-    auto& pb = it->second;
-    int request_num = pb.batch_size_;
+    auto& response  = pb.responses_[i];
+    int key_size    = pb.key_sizes_[i];
+    auto parameters = reinterpret_cast<const ParameterCompressReader*>(
+        response.parameter_value().data());
 
-    values->clear();
-    int keys_size = 0;
-    for (const auto& size : pb.key_sizes_) {
-        keys_size += size;
-    }
-    values->reserve(keys_size);
-
-    for (int i = 0; i < request_num; ++i) {
-        if (pb.controllers_[i]->Failed()) {
-             LOG(ERROR) << "Prefetch request failed: " << pb.controllers_[i]->ErrorText();
-             return false;
-        }
-
-        auto& response = pb.responses_[i];
-        int key_size = pb.key_sizes_[i];
-        auto parameters = reinterpret_cast<const ParameterCompressReader*>(response.parameter_value().data());
-
-        if (unlikely(parameters->size != key_size)) {
-            LOG(ERROR) << "GetParameter error: " << parameters->size << " vs " << key_size;
-            return false;
-        }
-
-        for (int index = 0; index < parameters->item_size(); ++index) {
-            auto item = parameters->item(index);
-            if (item->dim != 0) {
-                values->emplace_back(std::vector<float>(item->embedding, item->embedding + item->dim));
-            } else {
-                values->emplace_back(std::vector<float>(0));
-            }
-        }
+    if (unlikely(parameters->size != key_size)) {
+      LOG(ERROR) << "GetParameter error: " << parameters->size << " vs "
+                 << key_size;
+      return false;
     }
 
-    // 清理
-    prefetch_batches_.erase(it);
+    for (int index = 0; index < parameters->item_size(); ++index) {
+      auto item = parameters->item(index);
+      if (item->dim != 0) {
+        values->emplace_back(
+            std::vector<float>(item->embedding, item->embedding + item->dim));
+      } else {
+        values->emplace_back(std::vector<float>(0));
+      }
+    }
+  }
 
-    return true;
+  // 清理
+  prefetch_batches_.erase(it);
+
+  return true;
 }
 
 bool BRPCParameterClient::ClearPS() {
-    CommandRequest request;
-    CommandResponse response;
-    request.set_command(PSCommand::CLEAR_PS);
-    
-    brpc::Controller cntl;
-    recstoreps_brpc::ParameterService_Stub stub(channel_.get());
-    stub.Command(&cntl, &request, &response, nullptr);
-    
-    if (cntl.Failed()) {
-        LOG(ERROR) << "bRPC Command failed: " << cntl.ErrorText();
-        return false;
-    }
-    return true;
+  CommandRequest request;
+  CommandResponse response;
+  request.set_command(PSCommand::CLEAR_PS);
+
+  brpc::Controller cntl;
+  recstoreps_brpc::ParameterService_Stub stub(channel_.get());
+  stub.Command(&cntl, &request, &response, nullptr);
+
+  if (cntl.Failed()) {
+    LOG(ERROR) << "bRPC Command failed: " << cntl.ErrorText();
+    return false;
+  }
+  return true;
 }
 
 bool BRPCParameterClient::LoadFakeData(int64_t data) {
-    CommandRequest request;
-    CommandResponse response;
-    request.set_command(PSCommand::LOAD_FAKE_DATA);
-    request.add_arg1(&data, sizeof(int64_t));
-    
+  CommandRequest request;
+  CommandResponse response;
+  request.set_command(PSCommand::LOAD_FAKE_DATA);
+  request.add_arg1(&data, sizeof(int64_t));
+
+  brpc::Controller cntl;
+  recstoreps_brpc::ParameterService_Stub stub(channel_.get());
+  stub.Command(&cntl, &request, &response, nullptr);
+
+  if (cntl.Failed()) {
+    LOG(ERROR) << "bRPC LoadFakeData failed: " << cntl.ErrorText();
+    return false;
+  }
+  return true;
+}
+
+bool BRPCParameterClient::LoadCkpt(
+    const std::vector<std::string>& model_config_path,
+    const std::vector<std::string>& emb_file_path) {
+  CommandRequest request;
+  CommandResponse response;
+  request.set_command(PSCommand::RELOAD_PS);
+
+  for (auto& each : model_config_path) {
+    request.add_arg1(each);
+  }
+  for (auto& each : emb_file_path) {
+    request.add_arg2(each);
+  }
+
+  brpc::Controller cntl;
+  recstoreps_brpc::ParameterService_Stub stub(channel_.get());
+  stub.Command(&cntl, &request, &response, nullptr);
+
+  if (cntl.Failed()) {
+    LOG(ERROR) << "bRPC LoadCkpt failed: " << cntl.ErrorText();
+    return false;
+  }
+  return true;
+}
+
+bool BRPCParameterClient::PutParameter(
+    const std::vector<uint64_t>& keys,
+    const std::vector<std::vector<float>>& values) {
+  recstoreps_brpc::ParameterService_Stub stub(channel_.get());
+
+  for (int start = 0, index = 0; start < keys.size();
+       start += MAX_PARAMETER_BATCH_BRPC, ++index) {
+    int key_size =
+        std::min((int)(keys.size() - start), MAX_PARAMETER_BATCH_BRPC);
+
+    PutParameterRequest request;
+    PutParameterResponse response;
+    ParameterCompressor compressor;
+    std::vector<std::string> blocks;
+
+    for (int i = start; i < start + key_size; i++) {
+      auto each_key   = keys[i];
+      auto& embedding = values[i];
+      ParameterPack parameter_pack;
+      parameter_pack.key      = each_key;
+      parameter_pack.dim      = embedding.size();
+      parameter_pack.emb_data = embedding.data();
+      compressor.AddItem(parameter_pack, &blocks);
+    }
+    compressor.ToBlock(&blocks);
+    CHECK_EQ(blocks.size(), 1);
+    request.mutable_parameter_value()->swap(blocks[0]);
+
     brpc::Controller cntl;
-    recstoreps_brpc::ParameterService_Stub stub(channel_.get());
-    stub.Command(&cntl, &request, &response, nullptr);
-    
+    stub.PutParameter(&cntl, &request, &response, nullptr);
+
     if (cntl.Failed()) {
-        LOG(ERROR) << "bRPC LoadFakeData failed: " << cntl.ErrorText();
-        return false;
+      LOG(ERROR) << "bRPC PutParameter failed: " << cntl.ErrorText();
+      return false;
     }
-    return true;
+  }
+  return true;
 }
 
-bool BRPCParameterClient::LoadCkpt(const std::vector<std::string>& model_config_path,
-                                   const std::vector<std::string>& emb_file_path) {
-    CommandRequest request;
-    CommandResponse response;
-    request.set_command(PSCommand::RELOAD_PS);
-
-    for (auto& each : model_config_path) {
-        request.add_arg1(each);
-    }
-    for (auto& each : emb_file_path) {
-        request.add_arg2(each);
-    }
-    
-    brpc::Controller cntl;
-    recstoreps_brpc::ParameterService_Stub stub(channel_.get());
-    stub.Command(&cntl, &request, &response, nullptr);
-    
-    if (cntl.Failed()) {
-        LOG(ERROR) << "bRPC LoadCkpt failed: " << cntl.ErrorText();
-        return false;
-    }
-    return true;
+int BRPCParameterClient::AsyncGetParameter(
+    const base::ConstArray<uint64_t>& keys, float* values) {
+  return GetParameter(keys, values);
 }
 
-bool BRPCParameterClient::PutParameter(const std::vector<uint64_t>& keys,
-                                       const std::vector<std::vector<float>>& values) {
-    recstoreps_brpc::ParameterService_Stub stub(channel_.get());
-    
-    for (int start = 0, index = 0; start < keys.size(); start += MAX_PARAMETER_BATCH_BRPC, ++index) {
-        int key_size = std::min((int)(keys.size() - start), MAX_PARAMETER_BATCH_BRPC);
-        
-        PutParameterRequest request;
-        PutParameterResponse response;
-        ParameterCompressor compressor;
-        std::vector<std::string> blocks;
-        
-        for (int i = start; i < start + key_size; i++) {
-            auto each_key = keys[i];
-            auto& embedding = values[i];
-            ParameterPack parameter_pack;
-            parameter_pack.key = each_key;
-            parameter_pack.dim = embedding.size();
-            parameter_pack.emb_data = embedding.data();
-            compressor.AddItem(parameter_pack, &blocks);
-        }
-        compressor.ToBlock(&blocks);
-        CHECK_EQ(blocks.size(), 1);
-        request.mutable_parameter_value()->swap(blocks[0]);
-        
-        brpc::Controller cntl;
-        stub.PutParameter(&cntl, &request, &response, nullptr);
-        
-        if (cntl.Failed()) {
-            LOG(ERROR) << "bRPC PutParameter failed: " << cntl.ErrorText();
-            return false;
-        }
-    }
-    return true;
-}
-
-int BRPCParameterClient::AsyncGetParameter(const base::ConstArray<uint64_t>& keys, float* values) {
-    return GetParameter(keys, values);
-}
-
-int BRPCParameterClient::PutParameter(const base::ConstArray<uint64_t>& keys,
-                                      const std::vector<std::vector<float>>& values) {
-    std::vector<uint64_t> key_vec(keys.Data(), keys.Data() + keys.Size());
-    bool success = PutParameter(key_vec, values);
-    return success ? 1 : 0;
+int BRPCParameterClient::PutParameter(
+    const base::ConstArray<uint64_t>& keys,
+    const std::vector<std::vector<float>>& values) {
+  std::vector<uint64_t> key_vec(keys.Data(), keys.Data() + keys.Size());
+  bool success = PutParameter(key_vec, values);
+  return success ? 1 : 0;
 }
 
 void BRPCParameterClient::Command(recstore::PSCommand command) {
-    switch (command) {
-    case recstore::PSCommand::CLEAR_PS:
-        ClearPS();
-        break;
-    case recstore::PSCommand::RELOAD_PS:
-        LOG(WARNING) << "RELOAD_PS command requires additional parameters";
-        break;
-    case recstore::PSCommand::LOAD_FAKE_DATA: {
-        int64_t fake_data = 1000;
-        LoadFakeData(fake_data);
-    } break;
-    default:
-        LOG(ERROR) << "Unknown PS command: " << static_cast<int>(command);
-        break;
-    }
+  switch (command) {
+  case recstore::PSCommand::CLEAR_PS:
+    ClearPS();
+    break;
+  case recstore::PSCommand::RELOAD_PS:
+    LOG(WARNING) << "RELOAD_PS command requires additional parameters";
+    break;
+  case recstore::PSCommand::LOAD_FAKE_DATA: {
+    int64_t fake_data = 1000;
+    LoadFakeData(fake_data);
+  } break;
+  default:
+    LOG(ERROR) << "Unknown PS command: " << static_cast<int>(command);
+    break;
+  }
 }
 
 int BRPCParameterClient::UpdateParameter(
@@ -472,9 +511,9 @@ int BRPCParameterClient::UpdateParameter(
     return -1;
   }
   return response.success() ? 0 : -1;
-  }
-  
-  int BRPCParameterClient::InitEmbeddingTable(
+}
+
+int BRPCParameterClient::InitEmbeddingTable(
     const std::string& table_name,
     const recstore::EmbeddingTableConfig& config) {
   InitEmbeddingTableRequest request;
@@ -492,18 +531,19 @@ int BRPCParameterClient::UpdateParameter(
   return response.success() ? 0 : -1;
 }
 
-uint64_t BRPCParameterClient::EmbWriteAsync(const base::RecTensor& keys, const base::RecTensor& values) {
-    LOG(ERROR) << "EmbWriteAsync not implemented!";
-    return 0;
+uint64_t BRPCParameterClient::EmbWriteAsync(const base::RecTensor& keys,
+                                            const base::RecTensor& values) {
+  LOG(ERROR) << "EmbWriteAsync not implemented!";
+  return 0;
 }
 
 bool BRPCParameterClient::IsWriteDone(uint64_t write_id) {
-    LOG(ERROR) << "IsWriteDone not implemented!";
-    return true;
+  LOG(ERROR) << "IsWriteDone not implemented!";
+  return true;
 }
 
 void BRPCParameterClient::WaitForWrite(uint64_t write_id) {
-    LOG(ERROR) << "WaitForWrite not implemented!";
+  LOG(ERROR) << "WaitForWrite not implemented!";
 }
 
 // 注册 BRPCParameterClient 到工厂

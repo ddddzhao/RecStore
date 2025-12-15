@@ -8,8 +8,8 @@
 
 namespace recstore {
 class CPUEmbedding {
- public:
-  CPUEmbedding(const std::string &name, torch::Tensor weight)
+public:
+  CPUEmbedding(const std::string& name, torch::Tensor weight)
       : weight_(weight),
         num_embeddings_(weight_.size(0)),
         dim_(weight_.size(1)),
@@ -19,7 +19,7 @@ class CPUEmbedding {
 
   int64_t size(int dim) { return weight_.size(dim); }
 
-  void safe_index_add_(const int64_t index, const at::Tensor &source) {
+  void safe_index_add_(const int64_t index, const at::Tensor& source) {
     // static std::mutex mtx;
     // std::lock_guard<std::mutex> _(mtx);
 
@@ -44,18 +44,18 @@ class CPUEmbedding {
     bitlock_table_.unlock(index);
   }
 
-  void index_add_(int64_t dim, const at::Tensor &index,
-                  const at::Tensor &source) {
+  void
+  index_add_(int64_t dim, const at::Tensor& index, const at::Tensor& source) {
     weight_.index_add_(dim, index, source);
   }
 
   ~CPUEmbedding() = default;
 
- private:
+private:
   torch::Tensor weight_;
   int64_t num_embeddings_;
   int dim_;
   base::BitLockTable bitlock_table_;
 };
 
-}  // namespace recstore
+} // namespace recstore

@@ -11,7 +11,7 @@ DEFINE_int32(numa_id, 0, "");
 namespace petps {
 
 void PetPSClient::Init() {
-  constexpr uint64_t dsm_size = 1 * 1000 * define::MB;
+  constexpr uint64_t dsm_size   = 1 * 1000 * define::MB;
   static uint64_t dsm_base_addr = (uint64_t)hugePageAlloc(dsm_size);
 
   ClusterInfo cluster;
@@ -19,7 +19,7 @@ void PetPSClient::Init() {
   cluster.clientNR = XPostoffice::GetInstance()->NumClients();
   DSMConfig config(CacheConfig(), cluster, 0, true);
   config.NIC_name = '0' + FLAGS_numa_id;
-  config.dsmSize = dsm_size;
+  config.dsmSize  = dsm_size;
   config.baseAddr = (uint64_t)dsm_base_addr;
   dsm_ = DSM::getInstance(config, XPostoffice::GetInstance()->GlobalID());
 
@@ -31,16 +31,16 @@ void PetPSClient::Init() {
   LOG(INFO) << "set NUMA ID = " << FLAGS_numa_id;
 }
 
-int PetPSClient::GetParameter(
-    base::ConstArray<uint64_t> keys, std::vector<std::vector<float>> *values) {
+int PetPSClient::GetParameter(base::ConstArray<uint64_t> keys,
+                              std::vector<std::vector<float>>* values) {
   return 0;
 }
 
 std::vector<int> PetPSClient::GetServerThreadIDs() {
-  auto m = RawMessage::get_new_msg();
+  auto m     = RawMessage::get_new_msg();
   m->node_id = dsm_->getMyNodeID();
-  m->t_id = dsm_->getMyThreadID();
-  m->type = GET_SERVER_THREADIDS;
+  m->t_id    = dsm_->getMyThreadID();
+  m->type    = GET_SERVER_THREADIDS;
   // RPC to the server ID <shard_>
   dsm_->rpc_call(m, shard_, 0);
   uint64_t wr_id;
@@ -52,11 +52,14 @@ std::vector<int> PetPSClient::GetServerThreadIDs() {
       CHECK_EQ(recv->type, RESP_GET_SERVER_THREADIDS);
       Cursor cursor;
       Slice extra_data = recv->get_string(cursor);
-      base::ConstArray<int> cores((int *)extra_data.s,
-                                  extra_data.len / sizeof(int));
+      base::ConstArray<int> cores(
+          (int*)extra_data.s, extra_data.len / sizeof(int));
       LOG(INFO) << folly::sformat(
-          "client{} {}th thread are routed to PS{} ({})th thread", m->node_id,
-          (int)m->t_id, shard_, cores.Debug());
+          "client{} {}th thread are routed to PS{} ({})th thread",
+          m->node_id,
+          (int)m->t_id,
+          shard_,
+          cores.Debug());
       return cores.ToVector();
     }
   }
@@ -66,12 +69,12 @@ std::vector<int> PetPSClient::GetServerThreadIDs() {
 
 int PetPSClient::SelectServerThreadID() const {
   static int round_robin = 0;
-  int ret = serverThreadIdsRoutedTo_[round_robin];
-  round_robin = (round_robin + 1) % serverThreadIdsRoutedTo_.size();
+  int ret                = serverThreadIdsRoutedTo_[round_robin];
+  round_robin            = (round_robin + 1) % serverThreadIdsRoutedTo_.size();
   return ret;
 }
 
-void *PetPSClient::GetReceiveBuffer(size_t size) {
+void* PetPSClient::GetReceiveBuffer(size_t size) {
   static std::atomic<uint64_t> client_memory_offset_acc{0};
   GlobalAddress gaddr;
   gaddr.nodeID = dsm_->getMyNodeID();
@@ -81,17 +84,18 @@ void *PetPSClient::GetReceiveBuffer(size_t size) {
 
 // this interface assume all keys with the same embedding dimension
 int PetPSClient::GetParameter(base::ConstArray<uint64_t> keys,
-                                       float *values, bool isAsync,
-                                       int async_req_id) {
+                              float* values,
+                              bool isAsync,
+                              int async_req_id) {
   thread_local auto m = RawMessage::get_new_msg();
   GlobalAddress gaddr = dsm_->gaddr(values);
-  m->type = RpcType::GET;
-  m->receive_gaddr = gaddr;
+  m->type             = RpcType::GET;
+  m->receive_gaddr    = gaddr;
 
-  std::atomic<int> *poll =
-      (std::atomic<int> *)((char *)values + keys.Size() * FLAGS_value_size -
-                           sizeof(int));
-  rpcId2PollMap_[rpcIDAcc_] = (int *)poll;
+  std::atomic<int>* poll =
+      (std::atomic<int>*)((char*)values + keys.Size() * FLAGS_value_size -
+                          sizeof(int));
+  rpcId2PollMap_[rpcIDAcc_] = (int*)poll;
   poll->store(FINISH_MAGIC);
 
 #ifdef RPC_DEBUG
@@ -101,7 +105,9 @@ int PetPSClient::GetParameter(base::ConstArray<uint64_t> keys,
   }
 #endif
 
-  dsm_->rpc_call(m, shard_, SelectServerThreadID(),
+  dsm_->rpc_call(m,
+                 shard_,
+                 SelectServerThreadID(),
                  Slice(keys.binary_data(), keys.binary_size()));
 
   if (!isAsync) {
@@ -112,12 +118,12 @@ int PetPSClient::GetParameter(base::ConstArray<uint64_t> keys,
 }
 
 bool PetPSClient::QueryRPCFinished(int rpc_id) {
-  auto *poll = (std::atomic<int> *)rpcId2PollMap_[rpc_id];
+  auto* poll = (std::atomic<int>*)rpcId2PollMap_[rpc_id];
   return poll->load(std::memory_order::memory_order_relaxed) != FINISH_MAGIC;
 }
 
 void PetPSClient::WaitRPCFinish(int rpc_id) {
-  auto *poll = (std::atomic<int> *)rpcId2PollMap_[rpc_id];
+  auto* poll = (std::atomic<int>*)rpcId2PollMap_[rpc_id];
   while (poll->load(std::memory_order::memory_order_relaxed) == FINISH_MAGIC) {
 #ifdef RPC_DEBUG
     FB_LOG_EVERY_MS(INFO, 1000) << "poll = " << *poll << "\n";
@@ -136,23 +142,22 @@ void PetPSClient::RevokeRPCResource(int rpc_id) {
   rpcId2PollMap_.erase(rpc_id);
 };
 
-int PetPSClient::PutParameter(
-    const std::vector<uint64_t> &keys,
-    const std::vector<std::vector<float>> &values) {
+int PetPSClient::PutParameter(const std::vector<uint64_t>& keys,
+                              const std::vector<std::vector<float>>& values) {
   LOG(FATAL) << "";
   return 0;
 }
 
 int PetPSClient::FakePutParameter(base::ConstArray<uint64_t> keys,
-                                           float *values) {
+                                  float* values) {
   thread_local auto m = RawMessage::get_new_msg();
   GlobalAddress gaddr = dsm_->gaddr(values);
-  m->type = RpcType::PUT;
-  m->receive_gaddr = gaddr;
+  m->type             = RpcType::PUT;
+  m->receive_gaddr    = gaddr;
 
   // LOG(INFO) << "send PS Put";
-  std::atomic<int> *poll = (std::atomic<int> *)((char *)values);
-  rpcId2PollMap_[rpcIDAcc_] = (int *)poll;
+  std::atomic<int>* poll    = (std::atomic<int>*)((char*)values);
+  rpcId2PollMap_[rpcIDAcc_] = (int*)poll;
   poll->store(FINISH_MAGIC);
 
 #ifdef RPC_DEBUG
@@ -162,7 +167,9 @@ int PetPSClient::FakePutParameter(base::ConstArray<uint64_t> keys,
   }
 #endif
 
-  dsm_->rpc_call(m, shard_, SelectServerThreadID(),
+  dsm_->rpc_call(m,
+                 shard_,
+                 SelectServerThreadID(),
                  Slice(keys.binary_data(), keys.binary_size()));
 
   // if (!isAsync) {
@@ -172,4 +179,4 @@ int PetPSClient::FakePutParameter(base::ConstArray<uint64_t> keys,
   return rpcIDAcc_ - 1;
 }
 
-}  // namespace petps
+} // namespace petps

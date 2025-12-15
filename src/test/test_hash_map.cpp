@@ -34,12 +34,13 @@ int main() {
 
 #pragma omp parallel
   {
-    int thread_id = omp_get_thread_num();
+    int thread_id   = omp_get_thread_num();
     int num_threads = omp_get_num_threads();
-    
+
     for (int i = 0; i < 10; ++i) {
-      if (i % num_threads != thread_id) continue;
-      
+      if (i % num_threads != thread_id)
+        continue;
+
       auto it = myMap.find(i);
       if (it != myMap.end()) {
         if (thread_id == 0) {

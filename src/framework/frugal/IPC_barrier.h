@@ -18,12 +18,12 @@
 
 namespace recstore {
 class MultiProcessBarrier {
-  explicit MultiProcessBarrier(const std::string &name, int count)
+  explicit MultiProcessBarrier(const std::string& name, int count)
       : count_(count), bar_(0) {
     strcpy(name_, name.c_str());
   }
 
- public:
+public:
   void Wait() {
     int passed_old = passed_.load(std::memory_order_relaxed);
 
@@ -43,7 +43,7 @@ class MultiProcessBarrier {
 
   friend class MultiProcessBarrierFactory;
 
- private:
+private:
   char name_[256];
   int count_;
   std::atomic_int bar_;
@@ -51,13 +51,13 @@ class MultiProcessBarrier {
 };
 
 class MultiProcessBarrierHolder : public torch::CustomClassHolder {
- public:
-  MultiProcessBarrierHolder(MultiProcessBarrier *barrier) : barrier_(barrier) {}
+public:
+  MultiProcessBarrierHolder(MultiProcessBarrier* barrier) : barrier_(barrier) {}
 
   void Wait() { barrier_->Wait(); }
 
- private:
-  MultiProcessBarrier *barrier_;
+private:
+  MultiProcessBarrier* barrier_;
 };
 
 class MultiProcessBarrierFactory : public torch::CustomClassHolder {
@@ -74,16 +74,16 @@ class MultiProcessBarrierFactory : public torch::CustomClassHolder {
         folly::MemoryMapping::writable().setPrefault(true).setShared(true);
     // options.address = (void *)(0x080000000000);
     system("touch /dev/shm/recstore_ipc_barrier");
-    mapping_ = new folly::MemoryMapping("/dev/shm/recstore_ipc_barrier", 0,
-                                        kShmSize, options);
-    header_ = new ((IPCBarrierShmRegion *)mapping_->writableRange().begin())
+    mapping_ = new folly::MemoryMapping(
+        "/dev/shm/recstore_ipc_barrier", 0, kShmSize, options);
+    header_ = new ((IPCBarrierShmRegion*)mapping_->writableRange().begin())
         IPCBarrierShmRegion();
   }
 
- public:
-  static c10::intrusive_ptr<MultiProcessBarrierHolder> CreateStatic(
-      const std::string &name, int64_t count) {
-    auto *p = MultiProcessBarrierFactory::GetInstance()->Create(name, count);
+public:
+  static c10::intrusive_ptr<MultiProcessBarrierHolder>
+  CreateStatic(const std::string& name, int64_t count) {
+    auto* p = MultiProcessBarrierFactory::GetInstance()->Create(name, count);
     return c10::make_intrusive<MultiProcessBarrierHolder>(p);
   }
 
@@ -91,14 +91,14 @@ class MultiProcessBarrierFactory : public torch::CustomClassHolder {
     return MultiProcessBarrierFactory::GetInstance()->ClearIPCMemory();
   }
 
-  static MultiProcessBarrierFactory *GetInstance() {
-    static MultiProcessBarrierFactory *instance =
+  static MultiProcessBarrierFactory* GetInstance() {
+    static MultiProcessBarrierFactory* instance =
         new MultiProcessBarrierFactory();
     return instance;
   }
 
- private:
-  MultiProcessBarrier *Create(const std::string &name, int count) {
+private:
+  MultiProcessBarrier* Create(const std::string& name, int count) {
     base::LockGuard<base::SpinLock> lock_guard(header_->lock_);
 
     for (int i = 0; i < header_->counter_; i++) {
@@ -128,9 +128,9 @@ class MultiProcessBarrierFactory : public torch::CustomClassHolder {
 
   static const int kShmSize = 4 * 1024 * 1024;
 
- private:
-  folly::MemoryMapping *mapping_;
-  IPCBarrierShmRegion *header_;
+private:
+  folly::MemoryMapping* mapping_;
+  IPCBarrierShmRegion* header_;
 };
 
-}  // namespace recstore
+} // namespace recstore

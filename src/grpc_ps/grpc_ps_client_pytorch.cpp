@@ -26,7 +26,8 @@
 //     auto values_accessor = values.accessor<float, 2>();
 //     for (int start = 0, index = 0; start < keys.size(0);
 //          start += MAX_PARAMETER_BATCH, ++index) {
-//       int key_size = std::min((int)(keys.size(0) - start), MAX_PARAMETER_BATCH);
+//       int key_size = std::min((int)(keys.size(0) - start),
+//       MAX_PARAMETER_BATCH);
 
 //       PutParameterRequest request;
 //       PutParameterResponse response;

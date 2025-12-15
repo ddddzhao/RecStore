@@ -25,10 +25,10 @@ int64_t numel(const at::IntArrayRef shape) {
   return ret;
 }
 
-c10::intrusive_ptr<SlicedTensor> IPCTensorFactory::GetSlicedIPCTensorFromName(
-    const std::string &name) {
+c10::intrusive_ptr<SlicedTensor>
+IPCTensorFactory::GetSlicedIPCTensorFromName(const std::string& name) {
   _mm_mfence();
-  IPCTensorMemoryHandle *handle = IPCMemory::GetInstance()->GetHandle(name);
+  IPCTensorMemoryHandle* handle = IPCMemory::GetInstance()->GetHandle(name);
   if (nullptr == handle) {
     LOG(FATAL) << "IPCTensor " << name << " not found";
   }
@@ -36,15 +36,18 @@ c10::intrusive_ptr<SlicedTensor> IPCTensorFactory::GetSlicedIPCTensorFromName(
 }
 
 c10::intrusive_ptr<SlicedTensor> IPCTensorFactory::NewSlicedIPCGPUTensor(
-    const std::string &name, const at::IntArrayRef shape,
-    const at::ScalarType dtype, const int64_t dev_id) {
+    const std::string& name,
+    const at::IntArrayRef shape,
+    const at::ScalarType dtype,
+    const int64_t dev_id) {
   _mm_mfence();
   IPCTensorFactory::NewIPCGPUTensor(name, shape, dtype, dev_id);
   return IPCTensorFactory::GetSlicedIPCTensorFromName(name);
 }
 
 c10::intrusive_ptr<SlicedTensor> IPCTensorFactory::NewSlicedIPCTensor(
-    const std::string &name, const at::IntArrayRef shape,
+    const std::string& name,
+    const at::IntArrayRef shape,
     const at::ScalarType dtype) {
   _mm_mfence();
   IPCTensorFactory::NewIPCTensor(name, shape, dtype);
@@ -52,19 +55,21 @@ c10::intrusive_ptr<SlicedTensor> IPCTensorFactory::NewSlicedIPCTensor(
 }
 
 class Mfence : public torch::CustomClassHolder {
- public:
+public:
   static void mfence() { asm volatile("mfence" ::: "memory"); }
   static void lfence() { asm volatile("lfence" ::: "memory"); }
   static void sfence() { asm volatile("sfence" ::: "memory"); }
   static void complier_barrier() { asm volatile("" ::: "memory"); }
 };
 
-void RegisterIPCTensorFactory(torch::Library &m) {
+void RegisterIPCTensorFactory(torch::Library& m) {
   m.class_<SlicedTensor>("SlicedTensor")
       .def("GetSlicedTensor", &SlicedTensor::GetSlicedTensor)
       .def("__repr__", &SlicedTensor::__repr__)
       .def("SetSameShape4Debug", &SlicedTensor::SetSameShape4Debug)
-      .def("Copy_", &SlicedTensor::Copy_, "",
+      .def("Copy_",
+           &SlicedTensor::Copy_,
+           "",
            {torch::arg("right"), torch::arg("non_blocking") = false});
 
   m.class_<IPCTensorFactory>("IPCTensorFactory")
@@ -87,4 +92,4 @@ void RegisterIPCTensorFactory(torch::Library &m) {
       .def_static("sfence", &Mfence::sfence);
 }
 
-}  // namespace recstore
+} // namespace recstore

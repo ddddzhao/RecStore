@@ -17,7 +17,8 @@
 
 DEFINE_string(db, "KVEnginePersistDoubleShmKV", "");
 DEFINE_int64(key_space_m, 100, "key space in million");
-DEFINE_double(warmup_ratio, 0.8,
+DEFINE_double(warmup_ratio,
+              0.8,
               "bulk load (warmup_ratio * key_space) kvs in DB");
 DEFINE_int32(warmup_thread_num, 36, "");
 DEFINE_int32(thread_num, 1, "");
@@ -32,8 +33,8 @@ DECLARE_int32(value_size);
 DECLARE_int32(max_kv_num_per_request);
 
 class PetPSServer : public BaseParameterServer {
- public:
-  PetPSServer(BaseKV *base_kv, int thread_count)
+public:
+  PetPSServer(BaseKV* base_kv, int thread_count)
       : base_kv_(base_kv),
         thread_count_(thread_count),
         get_parameter_timer_("GetParameter", 1),
@@ -49,16 +50,16 @@ class PetPSServer : public BaseParameterServer {
     DSMConfig config(CacheConfig(), cluster, 0, false);
     if (FLAGS_use_sglist) {
       pm_address_for_check_ = base_kv_->RegisterPMAddr();
-      config.baseAddr = pm_address_for_check_.first;
-      config.dsmSize = pm_address_for_check_.second;
+      config.baseAddr       = pm_address_for_check_.first;
+      config.dsmSize        = pm_address_for_check_.second;
       LOG(INFO) << "register PM space to RNIC";
     } else {
-      config.dsmSize = 100 * define::MB;
+      config.dsmSize  = 100 * define::MB;
       config.baseAddr = (uint64_t)hugePageAlloc(config.dsmSize);
       LOG(INFO) << "WE DONT register PM space to RNIC";
     }
-    LOG(INFO) << "register MR start =" << (void *)config.baseAddr
-              << ", end = " << (void *)(config.baseAddr + config.dsmSize)
+    LOG(INFO) << "register MR start =" << (void*)config.baseAddr
+              << ", end = " << (void*)(config.baseAddr + config.dsmSize)
               << ", size = " << config.dsmSize;
 
     config.NIC_name = '0' + FLAGS_numa_id;
@@ -84,15 +85,16 @@ class PetPSServer : public BaseParameterServer {
 
   uint64_t GetThroughputCounterSum() const {
     uint64_t sum = 0;
-    for (int i = 0; i < thread_count_; i++) sum += tp[i][0];
+    for (int i = 0; i < thread_count_; i++)
+      sum += tp[i][0];
     return sum;
   }
 
- private:
-  void RpcGetServerServingThreadIDs(RawMessage *recv) {
+private:
+  void RpcGetServerServingThreadIDs(RawMessage* recv) {
     CHECK_EQ(recv->type, GET_SERVER_THREADIDS);
     static std::atomic_int serving_thread_id{0};
-    auto m = RawMessage::get_new_msg();
+    auto m  = RawMessage::get_new_msg();
     m->type = RESP_GET_SERVER_THREADIDS;
     std::vector<int> thread_ids;
     int r = serving_thread_id.fetch_add(1);
@@ -100,19 +102,21 @@ class PetPSServer : public BaseParameterServer {
     r = serving_thread_id.fetch_add(1);
     thread_ids.push_back(r % thread_count_);
     dsm_->rpc_call(
-        m, recv->node_id, recv->t_id,
-        Slice((char *)thread_ids.data(), thread_ids.size() * sizeof(int)));
+        m,
+        recv->node_id,
+        recv->t_id,
+        Slice((char*)thread_ids.data(), thread_ids.size() * sizeof(int)));
   }
 
-  void RpcPsPut(RawMessage *recv, int thread_id) {
+  void RpcPsPut(RawMessage* recv, int thread_id) {
     thread_local base::PseudoRandom random_engine;
     Cursor cursor;
     Slice extra_data = recv->get_string(cursor);
     int put_kv_count = extra_data.len / sizeof(uint64_t);
-    base::ConstArray<uint64_t> keys((uint64_t *)extra_data.s, put_kv_count);
+    base::ConstArray<uint64_t> keys((uint64_t*)extra_data.s, put_kv_count);
     for (int i = 0; i < keys.Size(); i++) {
-      base_kv_->Put(keys[i], random_engine.GetString(FLAGS_value_size),
-                    thread_id);
+      base_kv_->Put(
+          keys[i], random_engine.GetString(FLAGS_value_size), thread_id);
     }
     auto buf = dsm_->get_rdma_buffer();
     memcpy(buf, "123", 4);
@@ -120,21 +124,22 @@ class PetPSServer : public BaseParameterServer {
     dsm_->write(buf, gaddr, 4, true, petps::WR_ID_PUT);
   }
 
-  void RpcPsGet(RawMessage *recv, int thread_id) {
+  void RpcPsGet(RawMessage* recv, int thread_id) {
     thread_local std::vector<base::ConstArray<float>> values;
     const bool perf_condition = (thread_id == 0);
-    auto &sourcelist = sourcelists_[thread_id];
+    auto& sourcelist          = sourcelists_[thread_id];
 
     epoch_manager_->Protect();
 
-    if (perf_condition) get_parameter_timer_.start();
+    if (perf_condition)
+      get_parameter_timer_.start();
     Cursor cursor;
     Slice extra_data = recv->get_string(cursor);
 
     int batch_get_kv_count = extra_data.len / sizeof(uint64_t);
     tp[thread_id][0] += batch_get_kv_count;
-    base::ConstArray<uint64_t> keys((uint64_t *)extra_data.s,
-                                    batch_get_kv_count);
+    base::ConstArray<uint64_t> keys(
+        (uint64_t*)extra_data.s, batch_get_kv_count);
 #ifdef RPC_DEBUG
     for (auto each : keys) {
       CHECK_EQ(XPostoffice::GetInstance()->ServerID(),
@@ -148,19 +153,24 @@ class PetPSServer : public BaseParameterServer {
 #endif
     CHECK_LE(batch_get_kv_count, FLAGS_max_kv_num_per_request);
     values.clear();
-    if (perf_condition) index_timer_.start();
+    if (perf_condition)
+      index_timer_.start();
     base_kv_->BatchGet(keys, &values, thread_id);
-    if (perf_condition) index_timer_.end();
+    if (perf_condition)
+      index_timer_.end();
     CHECK_EQ(values.size(), batch_get_kv_count);
 #ifdef RPC_DEBUG
     int emb_dim = FLAGS_value_size / sizeof(float);
     for (int i = 0; i < batch_get_kv_count; i++) {
       XDebug::AssertTensorEq(
-          values[i].Data(), emb_dim, keys[i],
+          values[i].Data(),
+          emb_dim,
+          keys[i],
           folly::sformat("server embedding check error, key is {}", keys[i]));
     }
 #endif
-    if (perf_condition) value_timer_.start();
+    if (perf_condition)
+      value_timer_.start();
     if (FLAGS_use_sglist) {
       for (int i = 0; i < batch_get_kv_count; i++) {
         sourcelist[i].addr = values[i].binary_data();
@@ -174,11 +184,16 @@ class PetPSServer : public BaseParameterServer {
       }
 
       GlobalAddress gaddr = recv->receive_gaddr;
-      CHECK(dsm_->write_from_pm_vec(sourcelist.data(), batch_get_kv_count,
-                                    gaddr, true, 30, petps::WR_ID_SG_GET));
+      CHECK(dsm_->write_from_pm_vec(
+          sourcelist.data(),
+          batch_get_kv_count,
+          gaddr,
+          true,
+          30,
+          petps::WR_ID_SG_GET));
     } else {
       auto buf = dsm_->get_rdma_buffer();
-      int acc = 0;
+      int acc  = 0;
       for (int i = 0; i < batch_get_kv_count; i++) {
         memcpy(buf + acc, values[i].binary_data(), values[i].binary_size());
         acc += values[i].binary_size();
@@ -187,12 +202,14 @@ class PetPSServer : public BaseParameterServer {
       GlobalAddress gaddr = recv->receive_gaddr;
       dsm_->write(buf, gaddr, acc, true, petps::WR_ID_GET);
     }
-    if (perf_condition) value_timer_.end();
+    if (perf_condition)
+      value_timer_.end();
 
 #ifdef RPC_DEBUG
     LOG(INFO) << "RPC done";
 #endif
-    if (perf_condition) get_parameter_timer_.end();
+    if (perf_condition)
+      get_parameter_timer_.end();
   }
 
   void PollingThread(int thread_id) {
@@ -203,7 +220,7 @@ class PetPSServer : public BaseParameterServer {
     while (1) {
       msg->clear();
       uint64_t wr_id;
-      RawMessage *recv;
+      RawMessage* recv;
       do {
         recv = dsm_->rpc_fast_wait(&wr_id);
         if (recv == nullptr && wr_id == petps::WR_ID_SG_GET) {
@@ -228,41 +245,44 @@ class PetPSServer : public BaseParameterServer {
     }
   }
 
- private:
+private:
   std::vector<std::vector<SourceList>> sourcelists_;
-  BaseKV *base_kv_;
+  BaseKV* base_kv_;
   std::vector<std::thread> threads_;
   int thread_count_;
-  DSM *dsm_;
+  DSM* dsm_;
   xmh::Timer get_parameter_timer_;
   xmh::Timer index_timer_;
   xmh::Timer value_timer_;
 
   std::pair<uint64_t, uint64_t> pm_address_for_check_;
 
-  base::epoch::EpochManager *epoch_manager_;
+  base::epoch::EpochManager* epoch_manager_;
 
   constexpr static int kMaxThread = 128;
   uint64_t tp[kMaxThread][8];
 };
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
   folly::init(&argc, &argv);
   xmh::Reporter::StartReportThread();
 
   base::PMMmapRegisterCenter::GetConfig().use_dram = FLAGS_use_dram;
-  base::PMMmapRegisterCenter::GetConfig().numa_id = FLAGS_numa_id;
+  base::PMMmapRegisterCenter::GetConfig().numa_id  = FLAGS_numa_id;
 
   extern int global_socket_id;
   global_socket_id = FLAGS_numa_id;
   LOG(INFO) << "set NUMA ID = " << FLAGS_numa_id;
 
-  auto kv = base::Factory<BaseKV, const BaseKVConfig &>::NewInstance(FLAGS_db,
-                                                                     config);
+  auto kv =
+      base::Factory<BaseKV, const BaseKVConfig&>::NewInstance(FLAGS_db, config);
 
   LoadDBHelper load_db_helper(
-      kv, XPostoffice::GetInstance()->ServerID(), FLAGS_warmup_thread_num,
-      FLAGS_key_space_m * 1024 * 1024LL * FLAGS_warmup_ratio, FLAGS_value_size);
+      kv,
+      XPostoffice::GetInstance()->ServerID(),
+      FLAGS_warmup_thread_num,
+      FLAGS_key_space_m * 1024 * 1024LL * FLAGS_warmup_ratio,
+      FLAGS_value_size);
   if (FLAGS_preload) {
     load_db_helper.PreLoadDB();
     kv->Util();
@@ -283,10 +303,10 @@ int main(int argc, char *argv[]) {
 
   while (1) {
     auto micro_second1 = base::GetTimestamp();
-    uint64_t tp_sum1 = parameterServiceImpl.GetThroughputCounterSum();
+    uint64_t tp_sum1   = parameterServiceImpl.GetThroughputCounterSum();
     std::this_thread::sleep_for(std::chrono::seconds(1));
     auto micro_second2 = base::GetTimestamp();
-    uint64_t tp_sum2 = parameterServiceImpl.GetThroughputCounterSum();
+    uint64_t tp_sum2   = parameterServiceImpl.GetThroughputCounterSum();
     double tps = (tp_sum2 - tp_sum1) * 1.0 / (micro_second2 - micro_second1);
     printf("throughput %.4f Mkv/s\n", tps);
   }

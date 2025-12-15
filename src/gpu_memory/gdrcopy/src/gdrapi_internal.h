@@ -8,7 +8,7 @@
  * and/or sell copies of the Software, and to permit persons to whom the
  * Software is furnished to do so, subject to the following conditions:
  *
- * The above copyright notice and this permission notice shall be included in 
+ * The above copyright notice and this permission notice shall be included in
  * all copies or substantial portions of the Software.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -32,35 +32,34 @@ extern "C" {
 #endif
 
 #ifndef unlikely
-#ifdef __GNUC__
-#define unlikely(x)         __builtin_expect(!!(x), 0)
-#else
-#define unlikely(x)         (x)
-#endif
+#  ifdef __GNUC__
+#    define unlikely(x) __builtin_expect(!!(x), 0)
+#  else
+#    define unlikely(x) (x)
+#  endif
 #endif
 
 #ifndef ACCESS_ONCE
-#define ACCESS_ONCE(x)      (*(volatile typeof(x) *)&x)
+#  define ACCESS_ONCE(x) (*(volatile typeof(x)*)&x)
 #endif
 
 #ifndef WRITE_ONCE
-#define WRITE_ONCE(x, v)    (ACCESS_ONCE(x) = (v))
+#  define WRITE_ONCE(x, v) (ACCESS_ONCE(x) = (v))
 #endif
 
-
-typedef struct gdr_memh_t { 
-    uint32_t handle;
-    LIST_ENTRY(gdr_memh_t) entries;
-    unsigned mapped:1;
-    unsigned wc_mapping:1;
+typedef struct gdr_memh_t {
+  uint32_t handle;
+  LIST_ENTRY(gdr_memh_t) entries;
+  unsigned mapped     : 1;
+  unsigned wc_mapping : 1;
 } gdr_memh_t;
 
 struct gdr {
-    int fd;
-    LIST_HEAD(memh_list, gdr_memh_t) memhs;
-    size_t page_size;
-    size_t page_mask;
-    uint8_t page_shift;
+  int fd;
+  LIST_HEAD(memh_list, gdr_memh_t) memhs;
+  size_t page_size;
+  size_t page_mask;
+  uint8_t page_shift;
 };
 
 #ifdef __cplusplus

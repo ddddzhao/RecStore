@@ -10,8 +10,8 @@ typedef std::function<uint64()> TimestampGetter;
 
 struct PetKVReadData {
   uint32 expire_timet = 0;
-  const char *data = nullptr;
-  int size = 0;
+  const char* data    = nullptr;
+  int size            = 0;
 };
 
 #pragma pack(push, 1)
@@ -24,11 +24,11 @@ struct PetKVData {
     uint64_t kNoMallocOffset;
     explicit Config(int offset_bit = 32) {
       CHECK_GE(offset_bit, 32);
-      kExpireBit = 64 - offset_bit;
-      kExpireReductBit = 32 - kExpireBit;
-      kExpireMark = (1LL << kExpireBit) - 1;
+      kExpireBit        = 64 - offset_bit;
+      kExpireReductBit  = 32 - kExpireBit;
+      kExpireMark       = (1LL << kExpireBit) - 1;
       kExpireReductMark = (1LL << kExpireReductBit) - 1;
-      kNoMallocOffset = (1LL << offset_bit) - 1;
+      kNoMallocOffset   = (1LL << offset_bit) - 1;
     }
   };
   static Config kConfig;
@@ -45,7 +45,7 @@ struct PetKVData {
   inline void SetShmMallocOffset(int64_t shm_malloc_offset) {
     shm_malloc_offset = shm_malloc_offset == -1 ? kConfig.kNoMallocOffset
                                                 : shm_malloc_offset >> 3;
-    data_value = (data_value & kConfig.kExpireMark) |
+    data_value        = (data_value & kConfig.kExpireMark) |
                  (shm_malloc_offset << kConfig.kExpireBit);
   }
 
@@ -59,4 +59,4 @@ struct PetKVData {
 };
 #pragma pack(pop)
 
-}  // namespace base
+} // namespace base

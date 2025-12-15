@@ -20,7 +20,7 @@ template <class T>
 struct ProducerConsumerQueue {
   typedef T value_type;
 
-  ProducerConsumerQueue(const ProducerConsumerQueue&) = delete;
+  ProducerConsumerQueue(const ProducerConsumerQueue&)            = delete;
   ProducerConsumerQueue& operator=(const ProducerConsumerQueue&) = delete;
 
   // size must be >= 2.
@@ -45,7 +45,7 @@ struct ProducerConsumerQueue {
     // thread can be doing this.)
     if (!std::is_trivially_destructible<T>::value) {
       size_t readIndex = readIndex_;
-      size_t endIndex = writeIndex_;
+      size_t endIndex  = writeIndex_;
       while (readIndex != endIndex) {
         records_[readIndex].~T();
         if (++readIndex == size_) {
@@ -60,7 +60,7 @@ struct ProducerConsumerQueue {
   template <class... Args>
   bool write(Args&&... recordArgs) {
     auto const currentWrite = writeIndex_.load(std::memory_order_relaxed);
-    auto nextRecord = currentWrite + 1;
+    auto nextRecord         = currentWrite + 1;
     if (nextRecord == size_) {
       nextRecord = 0;
     }
@@ -105,7 +105,7 @@ struct ProducerConsumerQueue {
 
   std::vector<T> ToVector() {
     std::vector<T> ret;
-    auto const currentRead = readIndex_.load(std::memory_order_relaxed);
+    auto const currentRead  = readIndex_.load(std::memory_order_relaxed);
     auto const currentWrite = writeIndex_.load(std::memory_order_relaxed);
     if (currentRead == currentWrite) {
       // queue is empty
@@ -173,7 +173,7 @@ struct ProducerConsumerQueue {
   // maximum number of items in the queue.
   size_t capacity() const { return size_ - 1; }
 
- private:
+private:
   using AtomicIndex = std::atomic<unsigned int>;
 
   char pad0_[folly::hardware_destructive_interference_size];
@@ -188,4 +188,4 @@ struct ProducerConsumerQueue {
              sizeof(AtomicIndex)];
 };
 
-}  // namespace base
+} // namespace base

@@ -38,7 +38,7 @@ std::vector<std::vector<int>> parse_numa_nodes() {
   for (size_t i = 0; i < numa_lines.size(); ++i) {
     core_table.push_back(std::vector<int>());
     std::string& numa_line = numa_lines[i];
-    size_t pos = numa_line.find("CPU(s):");
+    size_t pos             = numa_line.find("CPU(s):");
     if (pos != std::string::npos) {
       std::string cpus = numa_line.substr(pos + 7);
       std::istringstream cpu_stream(cpus);
@@ -47,7 +47,7 @@ std::vector<std::vector<int>> parse_numa_nodes() {
         size_t dash_pos = cpu_range.find('-');
         if (dash_pos != std::string::npos) {
           int start = std::stoi(cpu_range.substr(0, dash_pos));
-          int end = std::stoi(cpu_range.substr(dash_pos + 1));
+          int end   = std::stoi(cpu_range.substr(dash_pos + 1));
           for (int cpu = start; cpu <= end; ++cpu) {
             core_table[i].push_back(cpu);
           }
@@ -68,4 +68,4 @@ void auto_bind_core() {
   LOG(WARNING) << "bind to core " << core_table[global_socket_id][core_idx];
   bind_core(core_table[global_socket_id][core_idx]);
 }
-}  // namespace base
+} // namespace base

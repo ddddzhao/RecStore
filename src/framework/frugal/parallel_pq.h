@@ -17,16 +17,16 @@ class DoublyLinkedList;
 
 template <typename T>
 struct Node {
- private:
+private:
   T data;
   int queue_priority;
-  Node *prev;
-  Node *next;
+  Node* prev;
+  Node* next;
 
   friend class recstore::DoublyLinkedList<T>;
 
- public:
-  Node(const T &value, int queue_priority)
+public:
+  Node(const T& value, int queue_priority)
       : data(value),
         queue_priority(queue_priority),
         prev(nullptr),
@@ -48,33 +48,33 @@ struct Node {
 
 template <typename T>
 class DoublyLinkedList {
- private:
-  std::atomic<Node<T> *> head_;
-  Node<T> *tail_;
+private:
+  std::atomic<Node<T>*> head_;
+  Node<T>* tail_;
   std::atomic_long size_;
   const int queue_priority_;
   mutable base::SpinLock lock_;
 
- public:
+public:
   DoublyLinkedList(int queue_priority)
       : head_(nullptr),
         tail_(nullptr),
         size_(0),
         queue_priority_(queue_priority) {}
 
-  void insert(Node<T> *newNode) {
+  void insert(Node<T>* newNode) {
     base::LockGuard _(lock_);
     if (!head_) {
       head_ = tail_ = newNode;
     } else {
-      tail_->next = newNode;
+      tail_->next   = newNode;
       newNode->prev = tail_;
-      tail_ = newNode;
+      tail_         = newNode;
     }
     size_++;
   }
 
-  void remove(Node<T> *nodeToRemove) {
+  void remove(Node<T>* nodeToRemove) {
     base::LockGuard _(lock_);
     CHECK_EQ(nodeToRemove->queue_priority, queue_priority_);
     if (nodeToRemove->prev) {
@@ -92,17 +92,17 @@ class DoublyLinkedList {
     size_--;
   }
 
-  Node<T> *pop() {
+  Node<T>* pop() {
     base::LockGuard _(lock_);
 
-    Node<T> *nodeToRemove = head_;
-    head_ = head_->next;
-    head_->prev = nullptr;
+    Node<T>* nodeToRemove = head_;
+    head_                 = head_->next;
+    head_->prev           = nullptr;
     size_--;
     return nodeToRemove;
   }
 
-  Node<T> *top() { return head_; }
+  Node<T>* top() { return head_; }
 
   size_t size() const { return size_; }
 
@@ -112,9 +112,10 @@ class DoublyLinkedList {
     base::LockGuard _(lock_);
     std::unordered_set<int64_t> id_set;
 
-    Node<T> *current = head_;
+    Node<T>* current = head_;
     while (current) {
-      if (current->prev) CHECK_EQ(current->prev->next, current);
+      if (current->prev)
+        CHECK_EQ(current->prev->next, current);
       CHECK_EQ(current->data->Priority(), queue_priority_);
       id_set.insert(current->data->GetID());
       current = current->next;
@@ -126,13 +127,14 @@ class DoublyLinkedList {
     base::LockGuard _(lock_);
 
     std::stringstream ss;
-    Node<T> *current = head_;
-    int temp = 0;
+    Node<T>* current = head_;
+    int temp         = 0;
     while (current) {
       ss << current->data->ToString() << " \n";
       current = current->next;
       temp++;
-      if (temp > size_) LOG(FATAL) << "linklist may not be linked properly";
+      if (temp > size_)
+        LOG(FATAL) << "linklist may not be linked properly";
     }
     return ss.str();
   }
@@ -140,35 +142,36 @@ class DoublyLinkedList {
 
 template <typename T>
 class ParallelPqIndex {
- private:
+private:
   // folly::ConcurrentHashMap<T, Node<T> *> index_;
-  std::vector<Node<T> *> index_;
+  std::vector<Node<T>*> index_;
 
- public:
+public:
   ParallelPqIndex(int64_t capacity) { index_.resize(capacity, nullptr); }
 
-  void assign(const T &key, Node<T> *value) { index_[key->GetID()] = value; }
+  void assign(const T& key, Node<T>* value) { index_[key->GetID()] = value; }
 
-  void erase(const T &key) { index_[key->GetID()] = nullptr; }
+  void erase(const T& key) { index_[key->GetID()] = nullptr; }
 
-  bool find(const T &key) const { return index_[key->GetID()] != nullptr; }
+  bool find(const T& key) const { return index_[key->GetID()] != nullptr; }
 
-  Node<T> *operator[](const T &key) const { return index_[key->GetID()]; }
+  Node<T>* operator[](const T& key) const { return index_[key->GetID()]; }
 
-  bool try_insert(const T &key, Node<T> *value) {
-    return base::Atomic::CAS((void **)&index_[key->GetID()], nullptr, value);
+  bool try_insert(const T& key, Node<T>* value) {
+    return base::Atomic::CAS((void**)&index_[key->GetID()], nullptr, value);
   }
 };
 
 template <typename T>
 class AbstractParallelPq {
- protected:
+protected:
   // priority ranges from 0~<kMaxPriority-1>
   constexpr static int kMaxPriority = 1000;
-  static constexpr int kInf = std::numeric_limits<int>::max();
+  static constexpr int kInf         = std::numeric_limits<int>::max();
 
   static inline int CastPriorityToQueueNo(int queue_priority) {
-    if (queue_priority == kInf) return kMaxPriority - 1;
+    if (queue_priority == kInf)
+      return kMaxPriority - 1;
     CHECK_LT(queue_priority, kMaxPriority - 1)
         << "Please increase kMaxPriority";
     CHECK_GE(queue_priority, 0);
@@ -176,22 +179,23 @@ class AbstractParallelPq {
   }
 
   static inline int CastQueueNoToPriority(int queue_no) {
-    if (queue_no == kMaxPriority - 1) return kInf;
+    if (queue_no == kMaxPriority - 1)
+      return kInf;
     CHECK_LT(queue_no, kMaxPriority - 1) << "Please increase kMaxPriority";
     CHECK_GE(queue_no, 0);
     return queue_no;
   }
 
- public:
-  virtual void PushOrUpdate(T *value) = 0;
+public:
+  virtual void PushOrUpdate(T* value) = 0;
 
   virtual bool empty() const = 0;
 
   virtual int MinPriority() const = 0;
 
-  virtual T *top() const = 0;
+  virtual T* top() const = 0;
 
-  virtual void ChunkClean(std::function<void(T *)> drain_fn) = 0;
+  virtual void ChunkClean(std::function<void(T*)> drain_fn) = 0;
 
   virtual void UpdatePossibleMIN(int min) const = 0;
 
@@ -202,21 +206,21 @@ class AbstractParallelPq {
 
 template <typename T>
 class ParallelPq : public AbstractParallelPq<T> {
-  using BaseClass = AbstractParallelPq<T>;
+  using BaseClass                   = AbstractParallelPq<T>;
   constexpr static int kMaxPriority = BaseClass::kMaxPriority;
-  static constexpr int kInf = BaseClass::kInf;
+  static constexpr int kInf         = BaseClass::kInf;
 
- public:
+public:
   ParallelPq(int64_t total_count) : index_(total_count) {
     for (int i = 0; i < kMaxPriority; i++) {
       if (i == kMaxPriority - 1)
-        qs_[i] = new DoublyLinkedList<T *>(kInf);
+        qs_[i] = new DoublyLinkedList<T*>(kInf);
       else
-        qs_[i] = new DoublyLinkedList<T *>(i);
+        qs_[i] = new DoublyLinkedList<T*>(i);
     }
   }
 
-  void PushOrUpdate(T *value) override {
+  void PushOrUpdate(T* value) override {
     Upsert(value);
 
     // // LOG(INFO) << "PushOrUpdate " << value->GetID();
@@ -231,23 +235,21 @@ class ParallelPq : public AbstractParallelPq<T> {
     std::stringstream ss;
     ss << "CustomParallelPriorityQueue:\n";
     if (empty()) {
-      ss << "\t\t"
-         << "empty\n";
+      ss << "\t\t" << "empty\n";
       return ss.str();
     }
 
     for (int i = 0; i < kMaxPriority; i++) {
       if (!qs_[i]->empty()) {
-        ss << "\t\t"
-           << "Q" << i << " :" << qs_[i]->ToString() << "\n";
+        ss << "\t\t" << "Q" << i << " :" << qs_[i]->ToString() << "\n";
       }
     }
     return ss.str();
   }
 
-  void ForDebug(const std::string &head) {}
+  void ForDebug(const std::string& head) {}
 
-  void CheckConsistency(const std::string &hint = "") {
+  void CheckConsistency(const std::string& hint = "") {
     std::unordered_set<int64_t> id_set;
     for (int i = 0; i < kMaxPriority; i++) {
       auto id_set_per_q = qs_[i]->CheckConsistency();
@@ -276,21 +278,22 @@ class ParallelPq : public AbstractParallelPq<T> {
     }
     return true;
 #else
-#error "defined a macro"
+#  error "defined a macro"
 #endif
   }
 
-  T *top() const override {
+  T* top() const override {
 #if defined(PPQ_ALL_SCAN)
     for (int i = 0; i < kMaxPriority; i++) {
-      auto *p = qs_[i]->top();
-      if (p) return p->Data();
+      auto* p = qs_[i]->top();
+      if (p)
+        return p->Data();
     }
     return nullptr;
 
 #elif defined(PPQ_SELECTIVE_SCAN)
     for (int i = priority_possible_min_; i < priority_possible_max_; i++) {
-      auto *p = qs_[i]->top();
+      auto* p = qs_[i]->top();
       if (p) {
         // update MIN
         // if (i != (kMaxPriority - 1))
@@ -298,21 +301,22 @@ class ParallelPq : public AbstractParallelPq<T> {
         return p->Data();
       }
     }
-    int i = kMaxPriority;
-    auto *p = qs_[i]->top();
+    int i   = kMaxPriority;
+    auto* p = qs_[i]->top();
     if (p) {
       return p->Data();
     }
     return nullptr;
 #else
-#error "defined a macro"
+#  error "defined a macro"
 #endif
   }
 
   int MinPriority() const override {
 #if defined(PPQ_ALL_SCAN)
     for (int i = 0; i < kMaxPriority; i++) {
-      if (!qs_[i]->empty()) return CastQueueNoToPriority(i);
+      if (!qs_[i]->empty())
+        return CastQueueNoToPriority(i);
     }
     return kInf;
 
@@ -326,10 +330,11 @@ class ParallelPq : public AbstractParallelPq<T> {
       }
     }
     int i = kMaxPriority;
-    if (!qs_[i]->empty()) return BaseClass::CastQueueNoToPriority(i);
+    if (!qs_[i]->empty())
+      return BaseClass::CastQueueNoToPriority(i);
     return kInf;
 #else
-#error "defined a macro"
+#  error "defined a macro"
 #endif
   }
 
@@ -337,15 +342,15 @@ class ParallelPq : public AbstractParallelPq<T> {
     priority_possible_min_ = min;
   }
 
-  void ChunkClean(std::function<void(T *)> drain_fn) override {
+  void ChunkClean(std::function<void(T*)> drain_fn) override {
     LOG(FATAL) << "should not call this";
   }
 
-  void pop_x(const T &value) {
+  void pop_x(const T& value) {
     LOG(FATAL) << "not USED now";
     // base::LockGuard guard(lock_);
     CHECK(index_.find(value));
-    Node<T> *node = index_[value];
+    Node<T>* node = index_[value];
     // LOG(ERROR) << "Node<T> * node" << node;
     // LOG(ERROR) << "CastPriorityToQueueNo(node->queue_priority)="
     //            << CastPriorityToQueueNo(node->queue_priority);
@@ -358,8 +363,8 @@ class ParallelPq : public AbstractParallelPq<T> {
     recycle_.Recycle(node);
   }
 
- private:
-  void Upsert(T *value) {
+private:
+  void Upsert(T* value) {
     int new_priority = value->Priority();
 
 #if defined(PPQ_SELECTIVE_SCAN)
@@ -370,11 +375,11 @@ class ParallelPq : public AbstractParallelPq<T> {
     }
 #endif
     if (index_.find(value)) {
-      Node<T *> *node = index_[value];
+      Node<T*>* node = index_[value];
       CHECK(node);
       int old_priority = node->QueuePriority();
       // ↓ atomically
-      Node<T *> *newnode = new Node<T *>(value, new_priority);
+      Node<T*>* newnode = new Node<T*>(value, new_priority);
       qs_[BaseClass::CastPriorityToQueueNo(new_priority)]->insert(newnode);
       qs_[BaseClass::CastPriorityToQueueNo(old_priority)]->remove(node);
       index_.assign(value, newnode);
@@ -383,7 +388,7 @@ class ParallelPq : public AbstractParallelPq<T> {
       recycle_.Recycle(node);
 
     } else {
-      Node<T *> *newNode = new Node<T *>(value, new_priority);
+      Node<T*>* newNode = new Node<T*>(value, new_priority);
       // atomically
       auto success = index_.try_insert(value, newNode);
       if (success) {
@@ -436,8 +441,8 @@ class ParallelPq : public AbstractParallelPq<T> {
   //   }
   // }
 
-  std::array<DoublyLinkedList<T *> *, kMaxPriority> qs_;
-  ParallelPqIndex<T *> index_;
+  std::array<DoublyLinkedList<T*>*, kMaxPriority> qs_;
+  ParallelPqIndex<T*> index_;
 
   mutable std::atomic_int priority_possible_min_{0};
   mutable std::atomic_int priority_possible_max_{kMaxPriority};
@@ -448,7 +453,7 @@ class ParallelPq : public AbstractParallelPq<T> {
 template <typename T>
 thread_local base::StdDelayedRecycle ParallelPq<T>::recycle_;
 
-}  // namespace recstore
+} // namespace recstore
 
 #undef PPQ_ALL_SCAN
 #undef PPQ_SELECTIVE_SCAN

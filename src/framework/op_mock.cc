@@ -1,15 +1,15 @@
 #ifdef USE_FAKE_KVCLIENT
-#include "framework/op.h"
-#include <mutex>
-#include <unordered_map>
-#include <vector>
+#  include "framework/op.h"
+#  include <mutex>
+#  include <unordered_map>
+#  include <vector>
 
-#include "base/tensor.h"
-#include <cstdlib>
-#include <iostream>
-#include <stdexcept>
+#  include "base/tensor.h"
+#  include <cstdlib>
+#  include <iostream>
+#  include <stdexcept>
 
-#ifndef RECSTORE_LOG
+#  ifndef RECSTORE_LOG
 // Fallback logging when included standalone.
 static int get_log_level() {
   static int level = []() {
@@ -20,13 +20,13 @@ static int get_log_level() {
   }();
   return level;
 }
-#define RECSTORE_LOG(level, msg)                                              \
-  do {                                                                        \
-    if (get_log_level() >= level) {                                           \
-      std::cout << msg << std::endl;                                          \
-    }                                                                         \
-  } while (0)
-#endif
+#    define RECSTORE_LOG(level, msg)                                           \
+      do {                                                                     \
+        if (get_log_level() >= level) {                                        \
+          std::cout << msg << std::endl;                                       \
+        }                                                                      \
+      } while (0)
+#  endif
 
 namespace recstore {
 
@@ -170,7 +170,8 @@ void KVClientOp::EmbUpdate(const base::RecTensor& keys,
   //     }
   //     RECSTORE_LOG(
   //         3,
-  //         "[DEBUG] [MOCK] EmbUpdate: key=" << key << " updated, grads=[...]");
+  //         "[DEBUG] [MOCK] EmbUpdate: key=" << key << " updated,
+  //         grads=[...]");
   //   }
   // }
 }
@@ -193,7 +194,8 @@ uint64_t KVClientOp::EmbPrefetch(const base::RecTensor& keys,
   std::lock_guard<std::mutex> lock(mtx_);
 
   int64_t emb_dim = values.shape(1);
-  // If caller passes empty dummy tensor (common in tests), fall back to known dim.
+  // If caller passes empty dummy tensor (common in tests), fall back to known
+  // dim.
   if (emb_dim == 0) {
     if (embedding_dim_ != -1) {
       emb_dim = embedding_dim_;
@@ -202,14 +204,17 @@ uint64_t KVClientOp::EmbPrefetch(const base::RecTensor& keys,
     }
   }
   if (emb_dim <= 0) {
-    throw std::runtime_error("KVClientOp Error: Prefetch embedding dimension unknown. Call EmbWrite first or pass a non-empty values tensor.");
+    throw std::runtime_error(
+        "KVClientOp Error: Prefetch embedding dimension unknown. Call EmbWrite "
+        "first or pass a non-empty values tensor.");
   }
   if (embedding_dim_ == -1) {
     embedding_dim_ = emb_dim;
   } else if (embedding_dim_ != emb_dim) {
-    throw std::runtime_error("KVClientOp Error: Inconsistent embedding dimension for prefetch.");
+    throw std::runtime_error(
+        "KVClientOp Error: Inconsistent embedding dimension for prefetch.");
   }
-  const int64_t num_keys = keys.shape(0);
+  const int64_t num_keys   = keys.shape(0);
   const uint64_t* key_data = keys.data_as<uint64_t>();
 
   uint64_t id = next_prefetch_id_++;
@@ -224,7 +229,8 @@ uint64_t KVClientOp::EmbPrefetch(const base::RecTensor& keys,
     } else {
       out[i] = it->second;
       if ((int64_t)out[i].size() != emb_dim) {
-        throw std::runtime_error("KVClientOp Error: Stored embedding dimension mismatch in prefetch.");
+        throw std::runtime_error("KVClientOp Error: Stored embedding dimension "
+                                 "mismatch in prefetch.");
       }
     }
   }

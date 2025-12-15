@@ -8,13 +8,13 @@
 
 namespace recstore {
 
-std::string toString(const torch::Tensor &tensor, bool simplified = true);
+std::string toString(const torch::Tensor& tensor, bool simplified = true);
 std::string toString(c10::intrusive_ptr<recstore::SlicedTensor> tensor,
                      bool simplified = true);
-std::string toString(const SubGradTensor &tensor, bool simplified = true);
+std::string toString(const SubGradTensor& tensor, bool simplified = true);
 
 class TensorUtil {
- public:
+public:
   static int64_t numel(const at::IntArrayRef shape) {
     int64_t ret = 1;
     for (auto i : shape) {
@@ -24,7 +24,7 @@ class TensorUtil {
   }
 
   static std::vector<torch::Tensor> IndexVectors(
-      const torch::Tensor &tensor, const std::vector<torch::Tensor> &indices) {
+      const torch::Tensor& tensor, const std::vector<torch::Tensor>& indices) {
 #ifdef DEBUG
     for (auto each : indices) {
       CHECK(each.dim() == 1);
@@ -40,7 +40,7 @@ class TensorUtil {
   }
 
   static std::vector<torch::Tensor> IndexVectorsDebug(
-      const torch::Tensor &tensor, const std::vector<torch::Tensor> &indices) {
+      const torch::Tensor& tensor, const std::vector<torch::Tensor>& indices) {
 #ifdef DEBUG
     for (auto each : indices) {
       CHECK(each.dim() == 1);
@@ -55,4 +55,4 @@ class TensorUtil {
     return ret;
   }
 };
-}  // namespace recstore
+} // namespace recstore

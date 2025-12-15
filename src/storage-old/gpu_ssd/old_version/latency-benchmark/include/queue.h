@@ -11,129 +11,109 @@
 #include <cstdint>
 #include <cstddef>
 
-
-enum QueueLocation : int
-{
-    REMOTE, LOCAL, GPU
-};
-
+enum QueueLocation : int { REMOTE, LOCAL, GPU };
 
 /*
  * Container for a queue pair (CQ + SQ).
  */
-struct QueuePair
-{
-    public:
-        const uint16_t no;  // Queue number
-        const size_t depth; // Queue depth (number of commands)
-        const size_t pages; // Maximum data transfer size (in pages)
+struct QueuePair {
+public:
+  const uint16_t no;  // Queue number
+  const size_t depth; // Queue depth (number of commands)
+  const size_t pages; // Maximum data transfer size (in pages)
 
-        mutable nvm_queue_t sq;
-        mutable nvm_queue_t cq;
+  mutable nvm_queue_t sq;
+  mutable nvm_queue_t cq;
 
+  QueuePair(const CtrlPtr& controller,
+            uint16_t no,
+            size_t depth,
+            size_t pages,
+            DmaPtr queueMemory);
 
-        QueuePair(const CtrlPtr& controller, uint16_t no, size_t depth, size_t pages, DmaPtr queueMemory);
+  QueuePair(const CtrlPtr& controller,
+            uint16_t no,
+            size_t depth,
+            size_t pages,
+            DmaPtr cqMemory,
+            DmaPtr sqMemory);
 
+  virtual ~QueuePair();
 
-        QueuePair(const CtrlPtr& controller, uint16_t no, size_t depth, size_t pages, DmaPtr cqMemory, DmaPtr sqMemory);
+  virtual std::string type() const = 0;
 
-        virtual ~QueuePair();
+  virtual QueueLocation location() const = 0;
 
-        virtual std::string type() const = 0;
+  const Ctrl& getController() const { return *controller; }
 
-        virtual QueueLocation location() const = 0;
+  const DmaPtr& getQueueMemory() const { return sqMemory; }
 
-        const Ctrl& getController() const
-        {
-            return *controller;
-        }
+  uint32_t getNodeId() const { return nodeId; }
 
-        const DmaPtr& getQueueMemory() const
-        {
-            return sqMemory;
-        }
+private:
+  CtrlPtr controller;
+  DmaPtr cqMemory;
 
-        uint32_t getNodeId() const
-        {
-            return nodeId;
-        }
+protected:
+  DmaPtr sqMemory;
+  uint32_t nodeId;
 
-    private:
-        CtrlPtr controller;
-        DmaPtr cqMemory;
-
-    protected:
-        DmaPtr sqMemory;
-        uint32_t nodeId;
-
-        QueuePair();
+  QueuePair();
 };
-
 
 typedef std::shared_ptr<QueuePair> QueuePtr;
 typedef std::map<uint16_t, QueuePtr> QueueMap;
 
+struct GpuQueue : public QueuePair {
+public:
+  GpuQueue(const CtrlPtr& controller,
+           uint16_t no,
+           size_t depth,
+           size_t pages,
+           const GpuPtr& gpu,
+           uint32_t adapter,
+           uint32_t cqSegmentId,
+           uint32_t sqSegmentId);
 
+  std::string type() const override;
 
-struct GpuQueue : public QueuePair
-{
-    public:
-        GpuQueue(const CtrlPtr& controller, 
-                 uint16_t no, 
-                 size_t depth, 
-                 size_t pages,
-                 const GpuPtr& gpu, 
-                 uint32_t adapter, 
-                 uint32_t cqSegmentId, 
-                 uint32_t sqSegmentId);
+  QueueLocation location() const override { return QueueLocation::GPU; }
 
-        std::string type() const override;
+  const Gpu& getGpu() const { return *gpu; }
 
-        QueueLocation location() const override
-        {
-            return QueueLocation::GPU;
-        }
-
-        const Gpu& getGpu() const
-        {
-            return *gpu;
-        }
-
-    private:
-        GpuPtr gpu;
+private:
+  GpuPtr gpu;
 };
 
+struct LocalQueue : public QueuePair {
+public:
+  std::string type() const override;
 
+  LocalQueue(
+      const CtrlPtr& controller, uint16_t no, size_t depth, size_t pages);
 
-struct LocalQueue : public QueuePair
-{
-    public:
-        std::string type() const override;
+  LocalQueue(const CtrlPtr& controller,
+             uint16_t no,
+             size_t depth,
+             size_t pages,
+             uint32_t adapter,
+             uint32_t segmentId);
 
-        LocalQueue(const CtrlPtr& controller, uint16_t no, size_t depth, size_t pages);
-
-        LocalQueue(const CtrlPtr& controller, uint16_t no, size_t depth, size_t pages, uint32_t adapter, uint32_t segmentId);
-
-        QueueLocation location() const override
-        {
-            return QueueLocation::LOCAL;
-        }
+  QueueLocation location() const override { return QueueLocation::LOCAL; }
 };
 
+struct RemoteQueue : public QueuePair {
+public:
+  std::string type() const override;
 
+  RemoteQueue(const CtrlPtr& controller,
+              uint16_t no,
+              size_t depth,
+              size_t pages,
+              uint32_t adapter,
+              uint32_t segmentId);
 
-struct RemoteQueue : public QueuePair
-{
-    public:
-        std::string type() const override;
-
-        RemoteQueue(const CtrlPtr& controller, uint16_t no, size_t depth, size_t pages, uint32_t adapter, uint32_t segmentId);
-
-        QueueLocation location() const override
-        {
-            return QueueLocation::REMOTE;
-        }
+  QueueLocation location() const override { return QueueLocation::REMOTE; }
 };
-
 
 #endif /* __LATENCY_BENCHMARK_QUEUE_H__ */

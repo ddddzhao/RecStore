@@ -1,7 +1,7 @@
 #pragma once
 
-#include <emmintrin.h>  //NOLINT
-#include <nmmintrin.h>  //NOLINT
+#include <emmintrin.h> //NOLINT
+#include <nmmintrin.h> //NOLINT
 #include <cmath>
 #include <functional>
 #include <iostream>
@@ -28,7 +28,7 @@ struct EntryT {
 #pragma pack(pop)
 
 class SparseMaskIter {
- public:
+public:
   explicit SparseMaskIter(int mask) : mask_(mask) {}
   bool HasNext() const { return mask_ != 0; }
   unsigned Next() {
@@ -38,29 +38,29 @@ class SparseMaskIter {
   }
   uint32_t Val() const { return mask_; }
 
- private:
+private:
   uint32_t mask_;
 };
 
 template <typename KeyT, typename ValueT, bool Persistence = false>
 struct F14Chunk {
   typedef EntryT<KeyT, ValueT> ItemT;
-  static constexpr int kMaxSize = 14;
+  static constexpr int kMaxSize  = 14;
   static constexpr int kFullMask = (1 << kMaxSize) - 1;
 
   SparseMaskIter MatchTag(uint8_t tag) const {
-    auto tag_vec = _mm_load_si128(static_cast<__m128i const *>(  // NOLINT
-        static_cast<const void *>(&tags_[0])));                  // NOLINT
-    auto cmp_val = _mm_set1_epi8(tag);                           // NOLINT
-    auto eq_vec = _mm_cmpeq_epi8(tag_vec, cmp_val);              // NOLINT
-    auto mask = _mm_movemask_epi8(eq_vec) & kFullMask;           // NOLINT
+    auto tag_vec = _mm_load_si128(static_cast<__m128i const*>( // NOLINT
+        static_cast<const void*>(&tags_[0])));                 // NOLINT
+    auto cmp_val = _mm_set1_epi8(tag);                         // NOLINT
+    auto eq_vec  = _mm_cmpeq_epi8(tag_vec, cmp_val);           // NOLINT
+    auto mask    = _mm_movemask_epi8(eq_vec) & kFullMask;      // NOLINT
     return SparseMaskIter{mask};
   }
 
-  int Find(const KeyT &key, uint8_t tag) {
+  int Find(const KeyT& key, uint8_t tag) {
     auto it = MatchTag(tag);
     while (it.HasNext()) {
-      auto id = it.Next();
+      auto id   = it.Next();
       auto pair = Get(id);
       if (LIKELY(key == pair->first)) {
         return id;
@@ -69,7 +69,7 @@ struct F14Chunk {
     return -1;
   }
 
-  ItemT *Insert(const KeyT &key, const ValueT &value, const uint8_t sign) {
+  ItemT* Insert(const KeyT& key, const ValueT& value, const uint8_t sign) {
     CHECK_LT(Size(), kMaxSize);
     size_++;
     auto it = MatchTag(0);
@@ -77,21 +77,23 @@ struct F14Chunk {
     return Set(it.Next(), sign, ItemT{key, value});
   }
 
-  ItemT *Set(size_t i, uint8_t tag, const ItemT &val) {
+  ItemT* Set(size_t i, uint8_t tag, const ItemT& val) {
     value_[i] = val;
     IF_Persistence(clflushopt_range(&value_[i], sizeof(ItemT)););
     tags_[i] = tag;
     return value_ + i;
   }
-  ItemT *Get(size_t i) { return value_ + i; }
+  ItemT* Get(size_t i) { return value_ + i; }
   void IncOverflow() {
-    if (overflow_count_ != 255) ++overflow_count_;
+    if (overflow_count_ != 255)
+      ++overflow_count_;
   }
   void DecOverflow() {
-    if (overflow_count_ != 255) --overflow_count_;
+    if (overflow_count_ != 255)
+      --overflow_count_;
   }
   void Delete(size_t i) {
-    tags_[i] = 0;
+    tags_[i]        = 0;
     value_[i].first = -1;
     IF_Persistence(
         clflushopt_range(&value_[i].first, sizeof(value_[i].first)););
@@ -102,7 +104,8 @@ struct F14Chunk {
   inline size_t Size() const { return size_; }
   bool InUse(size_t i) const { return tags_[i] != 0; }
   void Initialize() {
-    for (int i = 0; i < kMaxSize; i++) value_[i].first = -1;
+    for (int i = 0; i < kMaxSize; i++)
+      value_[i].first = -1;
   }
 
   uint8_t tags_[kMaxSize];
@@ -114,18 +117,20 @@ struct F14Chunk {
 } __attribute__((__aligned__(64)));
 
 // The basic structure is borrowed from F14 hash in Folly
-template <typename KeyT, typename ValueT, bool Persistence = false,
+template <typename KeyT,
+          typename ValueT,
+          bool Persistence = false,
           bool MM_PREFETCH = true>
 class PetHash {
- public:
+public:
   typedef EntryT<KeyT, ValueT> ItemT;
   typedef F14Chunk<KeyT, ValueT, Persistence> ChunkT;
-  typedef std::function<bool(const KeyT &, const ValueT &,
-                             const bool &force_delete)>
+  typedef std::function<bool(
+      const KeyT&, const ValueT&, const bool& force_delete)>
       CheckFuncT;
-  static constexpr size_t kChunkSize = ChunkT::kMaxSize;
-  static const uint32_t kSignBit = 8;
-  static const uint32_t kSignMask = (1 << kSignBit) - 1;
+  static constexpr size_t kChunkSize   = ChunkT::kMaxSize;
+  static const uint32_t kSignBit       = 8;
+  static const uint32_t kSignMask      = (1 << kSignBit) - 1;
   static const uint32_t kMaxLoadFactor = 90;
 
   PetHash() = default;
@@ -136,10 +141,11 @@ class PetHash {
   }
 
   void Initialize(uint64_t capacity, bool ignore_load_factor = false) {
-    if (!ignore_load_factor) capacity /= kMaxLoadFactor / 100.0;
+    if (!ignore_load_factor)
+      capacity /= kMaxLoadFactor / 100.0;
     chunk_num_ = OverFallChunkNum(capacity);
-    capacity_ = chunk_num_ * kChunkSize;
-    size_ = 0;
+    capacity_  = chunk_num_ * kChunkSize;
+    size_      = 0;
     memset(chunk_table_, 0, chunk_num_ * sizeof(ChunkT));
     for (uint64_t i = 0; i < chunk_num_; i++) {
       chunk_table_[i].Initialize();
@@ -147,38 +153,41 @@ class PetHash {
   }
 
   // Note(xieminhui) that mallocSetValid should be thread safe
-  void Reload(uint64_t capacity, bool ignore_load_factor,
+  void Reload(uint64_t capacity,
+              bool ignore_load_factor,
               std::function<void(KeyT, ValueT)> mallocSetValid,
               const int kRecoveryThread = 4) {
     CHECK(Persistence) << "If not PMEM KV, dont use Reload";
-    if (!ignore_load_factor) capacity /= kMaxLoadFactor / 100.0;
+    if (!ignore_load_factor)
+      capacity /= kMaxLoadFactor / 100.0;
     // chunk_num_ = Next2Power((capacity + kChunkSize - 1) / kChunkSize);
-    chunk_num_ = OverFallChunkNum(capacity);
-    capacity_ = chunk_num_ * kChunkSize;
+    chunk_num_        = OverFallChunkNum(capacity);
+    capacity_         = chunk_num_ * kChunkSize;
     uint64_t old_size = size_;
-    size_ = 0;
+    size_             = 0;
     std::atomic<uint64_t> count_size(0);
     std::vector<std::thread> thread_pool;
     uint64_t block_num = chunk_num_ / kRecoveryThread + 1;
     for (int i = 0; i < kRecoveryThread; ++i) {
-      uint64_t left = i * block_num;
+      uint64_t left  = i * block_num;
       uint64_t right = left + block_num;
       thread_pool.push_back(std::thread([&, left, right] {
         for (int chunk_id = left; chunk_id < right && chunk_id < chunk_num_;
              chunk_id++) {
-          ChunkT &chunk = chunk_table_[chunk_id];
-          chunk.size_ = 0;
+          ChunkT& chunk = chunk_table_[chunk_id];
+          chunk.size_   = 0;
           // reset inconsistent overflow_count_
           chunk.overflow_count_ = 0;
           for (int chunk_offset = 0; chunk_offset < ChunkT::kMaxSize;
                chunk_offset++) {
-            if (chunk.value_[chunk_offset].first == -1) continue;
+            if (chunk.value_[chunk_offset].first == -1)
+              continue;
             chunk.size_++;
-            ItemT &chunkItem = chunk.value_[chunk_offset];
+            ItemT& chunkItem = chunk.value_[chunk_offset];
             // 设置 size_             √
             count_size++;
             uint64 hash_value = Hash(chunkItem.first);
-            uint8 sign = Sign(hash_value);
+            uint8 sign        = Sign(hash_value);
             if (UNLIKELY(chunk.tags_[chunk_offset] != sign)) {
               // inconsistent tags
               FB_LOG_EVERY_MS(WARNING, 2000)
@@ -190,7 +199,8 @@ class PetHash {
         }
       }));
     }
-    for (auto &each : thread_pool) each.join();
+    for (auto& each : thread_pool)
+      each.join();
     size_.store(count_size);
     if (fabs((double)old_size - (double)size_) >= 1000) {
       LOG(ERROR) << "Large Diff after reload.";
@@ -199,20 +209,20 @@ class PetHash {
     // 设置 overflowbit
     thread_pool.clear();
     for (int i = 0; i < kRecoveryThread; ++i) {
-      uint64_t left = i * block_num;
+      uint64_t left  = i * block_num;
       uint64_t right = left + block_num;
       thread_pool.push_back(std::thread([&, left, right] {
         for (int chunk_id = left; chunk_id < right && chunk_id < chunk_num_;
              chunk_id++) {
-          ChunkT &chunk = chunk_table_[chunk_id];
+          ChunkT& chunk = chunk_table_[chunk_id];
           for (int chunk_offset = 0; chunk_offset < ChunkT::kMaxSize;
                chunk_offset++) {
-            ItemT &chunkItem = chunk.value_[chunk_offset];
+            ItemT& chunkItem = chunk.value_[chunk_offset];
             if (chunk.InUse(chunk_offset)) {
               mallocSetValid(chunkItem.first, chunkItem.second);
               uint64 hash_value = Hash(chunkItem.first);
-              size_t step = ProbeDelta(Sign(hash_value));
-              uint64 pos = hash_value & (chunk_num_ - 1);
+              size_t step       = ProbeDelta(Sign(hash_value));
+              uint64 pos        = hash_value & (chunk_num_ - 1);
               while (pos != chunk_id) {
                 /* before
                  * chunk_table_[pos].IncOverflow();
@@ -221,14 +231,15 @@ class PetHash {
                  * overflow_count_ will only incr. Thus we
                  * can use CAS to do lock free while avoid overflow
                  */
-                uint8 *prev_overflow_count = nullptr;
+                uint8* prev_overflow_count = nullptr;
                 uint8_t temp;
                 do {
                   temp = chunk_table_[pos].overflow_count_;
-                  if (temp == 255) break;
+                  if (temp == 255)
+                    break;
                 } while (
                     !chunk_table_[pos].overflow_count_.compare_exchange_strong(
-                        temp, temp + 1));  // NOLINT
+                        temp, temp + 1)); // NOLINT
                 pos = (pos + step) & (chunk_num_ - 1);
               }
             }
@@ -236,12 +247,14 @@ class PetHash {
         }
       }));
     }
-    for (auto &each : thread_pool) each.join();
+    for (auto& each : thread_pool)
+      each.join();
   }
 
-  static uint64_t MemorySize(uint64_t capacity,
-                             bool ignore_load_factor = false) {
-    if (!ignore_load_factor) capacity /= kMaxLoadFactor / 100.0;
+  static uint64_t
+  MemorySize(uint64_t capacity, bool ignore_load_factor = false) {
+    if (!ignore_load_factor)
+      capacity /= kMaxLoadFactor / 100.0;
     // auto chunk_table_num = Next2Power((capacity + kChunkSize - 1) /
     // kChunkSize);
     auto chunk_table_num = OverFallChunkNum(capacity);
@@ -250,7 +263,8 @@ class PetHash {
 
   static uint64_t Next2Power(uint64_t size) {
     uint64_t new_size = 1;
-    while (new_size < size) new_size <<= 1;
+    while (new_size < size)
+      new_size <<= 1;
     return new_size;
   }
 
@@ -274,7 +288,7 @@ class PetHash {
                    << memory_size << ", capacity_ = " << capacity_;
       return false;
     }
-    uint64_t total_num = 0;
+    uint64_t total_num             = 0;
     uint64_t chunk_table_total_num = 0;
     KeyT key;
     for (uint64_t i = 0; i < capacity_; ++i) {
@@ -294,10 +308,11 @@ class PetHash {
       chunk_table_total_num += chunk_table_[i].Size();
     }
     if (total_num != chunk_table_total_num)
-      LOG(ERROR) << fmt::format("PetHash invalid {} != {}", total_num,
-                                chunk_table_total_num);
+      LOG(ERROR) << fmt::format(
+          "PetHash invalid {} != {}", total_num, chunk_table_total_num);
     if (total_num != size_)
-      LOG(ERROR) << fmt::format("PetHash invalid {} != {}", total_num, size_.load());
+      LOG(ERROR) << fmt::format(
+          "PetHash invalid {} != {}", total_num, size_.load());
     return total_num == chunk_table_total_num && total_num == size_;
   }
 
@@ -308,82 +323,91 @@ class PetHash {
     LOG(INFO) << "PetHash size: " << sizeof(PetHash);
   }
 
-  std::pair<const ValueT, bool> Get(const KeyT &key) const {
-    auto *p = (PetHash<KeyT, ValueT, Persistence, MM_PREFETCH> *)(this);
+  std::pair<const ValueT, bool> Get(const KeyT& key) const {
+    auto* p = (PetHash<KeyT, ValueT, Persistence, MM_PREFETCH>*)(this);
     auto [value, p_value, exist] =
         p->GetInternal(key, nullptr, nullptr, nullptr);
     return std::make_pair(value, exist);
   }
 
-  std::pair<ValueT *, bool> GetReturnPtr(const KeyT &key) {
+  std::pair<ValueT*, bool> GetReturnPtr(const KeyT& key) {
     auto [value, p_value, exist] = GetInternal(key, nullptr, nullptr, nullptr);
     return std::make_pair(p_value, exist);
   }
 
   inline void HintPrefetch(const KeyT key) {
     uint64_t hash_value = Hash(key);
-    auto sign = Sign(hash_value);
-    size_t pos = hash_value & (chunk_num_ - 1);
-    auto chunk = chunk_table_ + pos;
-    _mm_prefetch((const char *)(chunk), _MM_HINT_T0);
-    _mm_prefetch((const char *)(chunk->Get(0)), _MM_HINT_T0);
+    auto sign           = Sign(hash_value);
+    size_t pos          = hash_value & (chunk_num_ - 1);
+    auto chunk          = chunk_table_ + pos;
+    _mm_prefetch((const char*)(chunk), _MM_HINT_T0);
+    _mm_prefetch((const char*)(chunk->Get(0)), _MM_HINT_T0);
   }
 
-  std::tuple<const ValueT, ValueT *const, bool> GetInternal(
-      const KeyT &key, uint64 *const item_pos = nullptr,
-      ChunkT **const chunk_pos = nullptr,
-      uint8_t *const in_chunk_id = nullptr) {
+  std::tuple<const ValueT, ValueT* const, bool>
+  GetInternal(const KeyT& key,
+              uint64* const item_pos     = nullptr,
+              ChunkT** const chunk_pos   = nullptr,
+              uint8_t* const in_chunk_id = nullptr) {
   RETRY:
     uint64_t hash_value = Hash(key);
-    auto sign = Sign(hash_value);
-    size_t step = ProbeDelta(sign);
-    size_t pos = hash_value & (chunk_num_ - 1);
+    auto sign           = Sign(hash_value);
+    size_t step         = ProbeDelta(sign);
+    size_t pos          = hash_value & (chunk_num_ - 1);
     size_t id;
     bool touch_migrating_chunk = false;
     for (size_t i = 0; i < chunk_num_; ++i) {
       auto chunk = chunk_table_ + pos;
       if (MM_PREFETCH) {
         _mm_prefetch(
-            static_cast<char const *>(static_cast<void const *>(  // NOLINT
+            static_cast<char const*>(static_cast<void const*>( // NOLINT
                 chunk->Get(3))),
-            _MM_HINT_T0);  // NOLINT
+            _MM_HINT_T0); // NOLINT
       }
-      if (UNLIKELY(chunk->is_migrating)) touch_migrating_chunk = true;
+      if (UNLIKELY(chunk->is_migrating))
+        touch_migrating_chunk = true;
 
       auto it = chunk->MatchTag(sign);
       while (it.HasNext()) {
-        id = it.Next();
+        id       = it.Next();
         auto val = chunk->Get(id);
         // re-read the key to ensure no-one modify it
         if (LIKELY(key == val->first)) {
-          if (item_pos != nullptr) *item_pos = pos * kChunkSize + id;
-          if (chunk_pos != nullptr) *chunk_pos = chunk;
-          if (in_chunk_id != nullptr) *in_chunk_id = id;
+          if (item_pos != nullptr)
+            *item_pos = pos * kChunkSize + id;
+          if (chunk_pos != nullptr)
+            *chunk_pos = chunk;
+          if (in_chunk_id != nullptr)
+            *in_chunk_id = id;
           return std::make_tuple(val->second, &val->second, true);
         }
       }
-      if (LIKELY(chunk->OverflowCount() == 0)) break;
+      if (LIKELY(chunk->OverflowCount() == 0))
+        break;
       pos = (pos + step) & (chunk_num_ - 1);
     }
-    if (UNLIKELY(touch_migrating_chunk)) goto RETRY;
+    if (UNLIKELY(touch_migrating_chunk))
+      goto RETRY;
     return std::make_tuple(ValueT(), nullptr, false);
   }
 
-  ChunkT *const NextChunk(ChunkT *const chunk, const int step) {
+  ChunkT* const NextChunk(ChunkT* const chunk, const int step) {
     auto p = chunk - chunk_table_;
-    p = (p + step + chunk_num_) % chunk_num_;
+    p      = (p + step + chunk_num_) % chunk_num_;
     return chunk_table_ + p;
   }
-  ChunkT *const PrevChunk(ChunkT *const chunk, const int step) {
+  ChunkT* const PrevChunk(ChunkT* const chunk, const int step) {
     auto p = chunk - chunk_table_;
-    p = (p - step + chunk_num_) % chunk_num_;
+    p      = (p - step + chunk_num_) % chunk_num_;
     return chunk_table_ + p;
   }
 
   // start -> mid ... -> mid -> end , [start, end]
-  void ChainTraverseReverse(ChunkT *const start, ChunkT *const end, int step,
-                            std::function<void(ChunkT *const)> func) {
-    ChunkT *current_chunk = end;
+  void ChainTraverseReverse(ChunkT* const start,
+                            ChunkT* const end,
+                            int step,
+                            std::function<void(ChunkT* const)> func) {
+    ChunkT* current_chunk = end;
     while (current_chunk != start) {
       func(current_chunk);
       current_chunk = PrevChunk(current_chunk, step);
@@ -391,9 +415,11 @@ class PetHash {
     func(current_chunk);
   }
 
-  void ChainTraverse(ChunkT *const start, ChunkT *const end, int step,
-                     std::function<void(ChunkT *const)> func) {
-    ChunkT *current_chunk = end;
+  void ChainTraverse(ChunkT* const start,
+                     ChunkT* const end,
+                     int step,
+                     std::function<void(ChunkT* const)> func) {
+    ChunkT* current_chunk = end;
     while (current_chunk != start) {
       func(current_chunk);
       current_chunk = NextChunk(current_chunk, step);
@@ -404,22 +430,23 @@ class PetHash {
   void HotnessAwareMigration(const base::ConstArray<KeyT> hot_keys) {
     for (auto key : hot_keys) {
       auto [home_chunk, home_chunk_id] = HomeChunk(key);
-      auto sign = Sign(Hash(key));
-      size_t hotkey_step = ProbeDelta(sign);
-      int id_in_chunk = home_chunk->Find(key, sign);
+      auto sign                        = Sign(Hash(key));
+      size_t hotkey_step               = ProbeDelta(sign);
+      int id_in_chunk                  = home_chunk->Find(key, sign);
       if (id_in_chunk != -1) {
         // hot KV is already in its home chunk, continue
         continue;
       }
-      ChunkT *current_chunk;
+      ChunkT* current_chunk;
       uint8_t current_in_chunk_id;
       auto [value, p_value_no_use, exists] =
           GetInternal(key, nullptr, &current_chunk, &current_in_chunk_id);
       CHECK(exists);
 
       ChainTraverseReverse(
-          home_chunk, current_chunk, hotkey_step,
-          [](ChunkT *const each) { each->is_migrating = true; });
+          home_chunk, current_chunk, hotkey_step, [](ChunkT* const each) {
+            each->is_migrating = true;
+          });
 
       // case 1: home_chunk has empty slot
       if (LIKELY(home_chunk->Size() != kChunkSize)) {
@@ -428,29 +455,32 @@ class PetHash {
         // remove it from its current chunk
         current_chunk->Delete(current_in_chunk_id);
         current_chunk->DecOverflow();
-        ChainTraverseReverse(home_chunk, current_chunk, hotkey_step,
-                             [current_chunk](ChunkT *const each) {
-                               each->is_migrating = false;
-                             });
+        ChainTraverseReverse(
+            home_chunk,
+            current_chunk,
+            hotkey_step,
+            [current_chunk](ChunkT* const each) {
+              each->is_migrating = false;
+            });
         continue;
       }
       // case 2: migration
       // Step 2.1: home_chunk select a victim
-      KeyT victim_key = -1;
+      KeyT victim_key     = -1;
       ValueT victim_value = -1;
-      int victim_id = 0;
+      int victim_id       = 0;
       CHECK(home_chunk->InUse(victim_id));
       {
-        auto item = home_chunk->Get(victim_id);
-        victim_key = item->first;
+        auto item    = home_chunk->Get(victim_id);
+        victim_key   = item->first;
         victim_value = item->second;
       }
       // Step 2.2: insert a victim to another chunk
-      auto victim_sign = Sign(Hash(victim_key));
-      size_t victim_step = ProbeDelta(victim_sign);
-      size_t victim_pos = (home_chunk_id + victim_step) & (chunk_num_ - 1);
+      auto victim_sign     = Sign(Hash(victim_key));
+      size_t victim_step   = ProbeDelta(victim_sign);
+      size_t victim_pos    = (home_chunk_id + victim_step) & (chunk_num_ - 1);
       bool victim_migrated = false;
-      auto chunk = chunk_table_ + victim_pos;
+      auto chunk           = chunk_table_ + victim_pos;
       for (size_t i = 0; i < chunk_num_; ++i) {
         base::AutoLock lock(chunk->lock_);
         if (LIKELY(chunk->Size() != kChunkSize)) {
@@ -469,7 +499,7 @@ class PetHash {
         } else {
           chunk->IncOverflow();
           victim_pos = (victim_pos + victim_step) & (chunk_num_ - 1);
-          chunk = chunk_table_ + victim_pos;
+          chunk      = chunk_table_ + victim_pos;
         }
       }
       CHECK(victim_migrated);
@@ -479,19 +509,25 @@ class PetHash {
       current_chunk->Delete(current_in_chunk_id);
       // all chunks along this chain should be reduced by 1
       // (current_chunk, home_chunk]
-      ChainTraverseReverse(home_chunk, current_chunk, hotkey_step,
-                           [current_chunk](ChunkT *const each) {
-                             //  unlock
-                             each->is_migrating = false;
-                             //  unlock done
-                             if (each == current_chunk) return;
-                             each->DecOverflow();
-                           });
+      ChainTraverseReverse(
+          home_chunk,
+          current_chunk,
+          hotkey_step,
+          [current_chunk](ChunkT* const each) {
+            //  unlock
+            each->is_migrating = false;
+            //  unlock done
+            if (each == current_chunk)
+              return;
+            each->DecOverflow();
+          });
     }
   }
 
-  ValueT *Set(const KeyT &key, const ValueT &value,
-              CheckFuncT check_func = nullptr, bool is_force = false) {
+  ValueT* Set(const KeyT& key,
+              const ValueT& value,
+              CheckFuncT check_func = nullptr,
+              bool is_force         = false) {
     auto [old_p_value, exists] = GetReturnPtr(key);
     if (exists) {
       *old_p_value = value;
@@ -501,19 +537,21 @@ class PetHash {
     return Insert(key, value, check_func, is_force);
   }
 
-  std::pair<ChunkT *, size_t> HomeChunk(const KeyT &key) {
+  std::pair<ChunkT*, size_t> HomeChunk(const KeyT& key) {
     uint64_t hash_value = Hash(key);
-    size_t pos = hash_value & (chunk_num_ - 1);
-    auto chunk = chunk_table_ + pos;
+    size_t pos          = hash_value & (chunk_num_ - 1);
+    auto chunk          = chunk_table_ + pos;
     return std::make_pair(chunk, pos);
   }
 
-  ValueT *Insert(const KeyT &key, const ValueT &value,
-                 CheckFuncT check_func = nullptr, bool force_insert = false) {
+  ValueT* Insert(const KeyT& key,
+                 const ValueT& value,
+                 CheckFuncT check_func = nullptr,
+                 bool force_insert     = false) {
     uint64_t hash_value = Hash(key);
-    auto sign = Sign(hash_value);
-    size_t step = ProbeDelta(sign);
-    auto [chunk, pos] = HomeChunk(key);
+    auto sign           = Sign(hash_value);
+    size_t step         = ProbeDelta(sign);
+    auto [chunk, pos]   = HomeChunk(key);
 
     for (size_t i = 0; i < chunk_num_; ++i) {
       base::AutoLock lock(chunk->lock_);
@@ -522,7 +560,8 @@ class PetHash {
         for (size_t id = 0; id < kChunkSize; ++id)
           if (chunk->InUse(id)) {
             auto it = chunk->Get(id);
-            if (!check_func(it->first, it->second, false)) Delete(it->first);
+            if (!check_func(it->first, it->second, false))
+              Delete(it->first);
           }
       }
 
@@ -530,7 +569,7 @@ class PetHash {
       {
         auto it = chunk->MatchTag(sign);
         while (it.HasNext()) {
-          auto id = it.Next();
+          auto id  = it.Next();
           auto val = chunk->Get(id);
           if (LIKELY(key == val->first)) {
             val->second = value;
@@ -545,35 +584,39 @@ class PetHash {
         return &val->second;
       }
       if (UNLIKELY(Full())) {
-        FB_LOG_EVERY_MS(ERROR, 1000)
-            << fmt::format("Warning pethash dict full, {}/{}={}", size_.load(),
-                           capacity_, size_ / (double)capacity_);
+        FB_LOG_EVERY_MS(ERROR, 1000) << fmt::format(
+            "Warning pethash dict full, {}/{}={}",
+            size_.load(),
+            capacity_,
+            size_ / (double)capacity_);
         if (!force_insert) {
           LOG(FATAL) << "dict OOM";
           return nullptr;
         }
         auto it = chunk->Get((sign + i) % kChunkSize);
-        if (check_func != nullptr) check_func(it->first, it->second, true);
+        if (check_func != nullptr)
+          check_func(it->first, it->second, true);
         Delete(it->first);
       } else {
         chunk->IncOverflow();
-        pos = (pos + step) & (chunk_num_ - 1);
+        pos   = (pos + step) & (chunk_num_ - 1);
         chunk = chunk_table_ + pos;
       }
     }
     LOG(FATAL) << "dict OOM";
     return nullptr;
   }
-  bool Delete(const KeyT &key) {
+  bool Delete(const KeyT& key) {
     uint64_t pos;
     auto [nouse0, nouse1, exists] = GetInternal(key, &pos);
-    if (!exists) return true;
+    if (!exists)
+      return true;
 
     uint64_t hash_value = Hash(key);
-    size_t step = ProbeDelta(Sign(hash_value));
-    auto chunk_id = pos / kChunkSize;
-    auto chunk_offset = pos % kChunkSize;
-    pos = hash_value & (chunk_num_ - 1);
+    size_t step         = ProbeDelta(Sign(hash_value));
+    auto chunk_id       = pos / kChunkSize;
+    auto chunk_offset   = pos % kChunkSize;
+    pos                 = hash_value & (chunk_num_ - 1);
     while (pos != chunk_id) {
       chunk_table_[pos].DecOverflow();
       pos = (pos + step) & (chunk_num_ - 1);
@@ -583,21 +626,24 @@ class PetHash {
     return true;
   }
 
-  ValueT *GetById(uint64_t pos, KeyT *key = nullptr) {
+  ValueT* GetById(uint64_t pos, KeyT* key = nullptr) {
     auto it = chunk_table_[pos / kChunkSize].Get(pos % kChunkSize);
-    if (key != nullptr) *key = it->first;
+    if (key != nullptr)
+      *key = it->first;
     return &it->second;
   }
 
   bool IndexInUse(uint64_t pos) {
-    if (pos >= capacity_) return false;
+    if (pos >= capacity_)
+      return false;
     return chunk_table_[pos / kChunkSize].InUse(pos % kChunkSize);
   }
 
-  int64_t Lookup(const KeyT &key) {
+  int64_t Lookup(const KeyT& key) {
     uint64_t pos;
     auto [nouse0, nouse1, exists] = GetInternal(key, &pos);
-    if (exists) return pos;
+    if (exists)
+      return pos;
     return -1;
   }
 
@@ -607,11 +653,11 @@ class PetHash {
 
   inline bool Full() { return size_ * 100 >= capacity_ * kMaxLoadFactor; }
 
- private:
+private:
   inline size_t ProbeDelta(size_t key) const { return key * 2 | 1; }
 
-  static inline uint8_t Sign(const uint64_t &key) {  // NOLINT
-    uint64_t c = _mm_crc32_u64(0, key);              // NOLINT
+  static inline uint8_t Sign(const uint64_t& key) { // NOLINT
+    uint64_t c = _mm_crc32_u64(0, key);             // NOLINT
     // ??????
     // WARNING(xieminhui): diff from kuaishou
     // key += c;
@@ -627,4 +673,4 @@ class PetHash {
   ChunkT chunk_table_[0];
 };
 
-}  // namespace base
+} // namespace base

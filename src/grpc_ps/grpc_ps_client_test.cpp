@@ -8,29 +8,31 @@
 #include "base_ps/base_client.h"
 #include "grpc_ps_client.h"
 
-static bool check_eq_1d(const std::vector<float> &a,
-                        const std::vector<float> &b) {
-  if (a.size() != b.size()) return false;
+static bool
+check_eq_1d(const std::vector<float>& a, const std::vector<float>& b) {
+  if (a.size() != b.size())
+    return false;
 
   for (int i = 0; i < a.size(); i++) {
-    if (std::abs(a[i] - b[i]) > 1e-6) return false;
+    if (std::abs(a[i] - b[i]) > 1e-6)
+      return false;
   }
   return true;
 }
 
-static bool check_eq_2d(const std::vector<std::vector<float>> &a,
-                        const std::vector<std::vector<float>> &b) {
-  if (a.size() != b.size()) return false;
+static bool check_eq_2d(const std::vector<std::vector<float>>& a,
+                        const std::vector<std::vector<float>>& b) {
+  if (a.size() != b.size())
+    return false;
   for (int i = 0; i < a.size(); i++) {
-    if (check_eq_1d(a[i], b[i]) == false) return false;
+    if (check_eq_1d(a[i], b[i]) == false)
+      return false;
   }
   return true;
 }
-
 
 void TestFactoryClient() {
   std::cout << "=== Testing Factory Pattern ===" << std::endl;
-
 
   json config = {{"host", "127.0.0.1"}, {"port", 15000}, {"shard", 1}};
 
@@ -45,8 +47,8 @@ void TestFactoryClient() {
   std::cout << "Successfully created PS client via factory" << std::endl;
 
   std::random_device
-      rd;  // Will be used to obtain a seed for the random number engine
-  std::mt19937 gen(rd());  // Standard mersenne_twister_engine seeded with rd()
+      rd; // Will be used to obtain a seed for the random number engine
+  std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
   std::uniform_int_distribution<> distrib(1, 200LL * 1e6);
 
   // while (1) {
@@ -75,7 +77,7 @@ void TestFactoryClient() {
 
     // insert something
     grpc_client->PutParameter(keys, rightvalues);
-    std::cout<<"put parameter done"<<std::endl;
+    std::cout << "put parameter done" << std::endl;
     // read those
     grpc_client->GetParameter(keys, &values);
     CHECK(check_eq_2d(values, rightvalues));
@@ -86,10 +88,9 @@ void TestFactoryClient() {
     grpc_client->GetParameter(keys, &values);
     CHECK(check_eq_2d(values, emptyvalues));
   }
-  
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   folly::Init(&argc, &argv);
   xmh::Reporter::StartReportThread(2000);
 
@@ -100,8 +101,8 @@ int main(int argc, char **argv) {
   // GRPCParameterClient client("127.0.0.1", 15000, 1);
   // std::random_device
   //     rd;  // Will be used to obtain a seed for the random number engine
-  // std::mt19937 gen(rd());  // Standard mersenne_twister_engine seeded with rd()
-  // std::uniform_int_distribution<> distrib(1, 200LL * 1e6);
+  // std::mt19937 gen(rd());  // Standard mersenne_twister_engine seeded with
+  // rd() std::uniform_int_distribution<> distrib(1, 200LL * 1e6);
 
   // // while (1) {
   // //   int perf_count = 500;

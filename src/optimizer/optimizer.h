@@ -12,53 +12,69 @@ using recstore::EmbeddingTableConfig;
 
 class Optimizer {
 protected:
-    std::unordered_map<std::string, SparseTensor*> tensor_map_;
+  std::unordered_map<std::string, SparseTensor*> tensor_map_;
 
 public:
-    virtual ~Optimizer() {
-        for (auto& pair : tensor_map_) {
-            delete pair.second;
-        }
+  virtual ~Optimizer() {
+    for (auto& pair : tensor_map_) {
+      delete pair.second;
     }
+  }
 
-    virtual void Init(const std::vector<std::string> table_name, const EmbeddingTableConfig& config) = 0;
+  virtual void Init(const std::vector<std::string> table_name,
+                    const EmbeddingTableConfig& config) = 0;
 
-    virtual void Update(std::string table, const std::vector<uint64_t>& keys, const std::vector<std::vector<float>>& grads, unsigned tid) = 0;
+  virtual void Update(std::string table,
+                      const std::vector<uint64_t>& keys,
+                      const std::vector<std::vector<float>>& grads,
+                      unsigned tid) = 0;
 };
 
 class SGD : public Optimizer {
 private:
-    float learning_rate_;
+  float learning_rate_;
 
 public:
-    explicit SGD(float lr = 0.01) : learning_rate_(lr) {}
-    
-    void Init(const std::vector<std::string> table_name, const EmbeddingTableConfig& config) override;
-    void Update(std::string table, const std::vector<uint64_t>& keys, const std::vector<std::vector<float>>& grads, unsigned tid) override;
+  explicit SGD(float lr = 0.01) : learning_rate_(lr) {}
+
+  void Init(const std::vector<std::string> table_name,
+            const EmbeddingTableConfig& config) override;
+  void Update(std::string table,
+              const std::vector<uint64_t>& keys,
+              const std::vector<std::vector<float>>& grads,
+              unsigned tid) override;
 };
 
 class AdaGrad : public Optimizer {
 private:
-    float learning_rate_;
-    float epsilon_;
+  float learning_rate_;
+  float epsilon_;
 
 public:
-    explicit AdaGrad(float lr = 0.01, float epsilon = 1e-10) 
-        : learning_rate_(lr), epsilon_(epsilon) {}
-    
-    void Init(const std::vector<std::string> table_name, const EmbeddingTableConfig& config) override;
-    void Update(std::string table, const std::vector<uint64_t>& keys, const std::vector<std::vector<float>>& grads, unsigned tid) override;
+  explicit AdaGrad(float lr = 0.01, float epsilon = 1e-10)
+      : learning_rate_(lr), epsilon_(epsilon) {}
+
+  void Init(const std::vector<std::string> table_name,
+            const EmbeddingTableConfig& config) override;
+  void Update(std::string table,
+              const std::vector<uint64_t>& keys,
+              const std::vector<std::vector<float>>& grads,
+              unsigned tid) override;
 };
 
 class RowWiseAdaGrad : public Optimizer {
 private:
-    float learning_rate_;
-    float epsilon_;
+  float learning_rate_;
+  float epsilon_;
 
 public:
-    explicit RowWiseAdaGrad(float lr = 0.01, float epsilon = 1e-10) 
-        : learning_rate_(lr), epsilon_(epsilon) {}
-    
-    void Init(const std::vector<std::string> table_name, const EmbeddingTableConfig& config) override;
-    void Update(std::string table, const std::vector<uint64_t>& keys, const std::vector<std::vector<float>>& grads, unsigned tid) override;
+  explicit RowWiseAdaGrad(float lr = 0.01, float epsilon = 1e-10)
+      : learning_rate_(lr), epsilon_(epsilon) {}
+
+  void Init(const std::vector<std::string> table_name,
+            const EmbeddingTableConfig& config) override;
+  void Update(std::string table,
+              const std::vector<uint64_t>& keys,
+              const std::vector<std::vector<float>>& grads,
+              unsigned tid) override;
 };

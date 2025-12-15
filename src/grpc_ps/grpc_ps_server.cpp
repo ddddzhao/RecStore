@@ -30,53 +30,58 @@ using recstoreps::CommandRequest;
 using recstoreps::CommandResponse;
 using recstoreps::GetParameterRequest;
 using recstoreps::GetParameterResponse;
+using recstoreps::InitEmbeddingTableRequest;
+using recstoreps::InitEmbeddingTableResponse;
 using recstoreps::PSCommand;
 using recstoreps::PutParameterRequest;
 using recstoreps::PutParameterResponse;
-using recstoreps::InitEmbeddingTableRequest;
-using recstoreps::InitEmbeddingTableResponse;
 using recstoreps::UpdateParameterRequest;
 using recstoreps::UpdateParameterResponse;
 
-DEFINE_string(config_path, RECSTORE_PATH "/recstore_config.json",
+DEFINE_string(config_path,
+              RECSTORE_PATH "/recstore_config.json",
               "config file path");
 
 class ParameterServiceImpl final
     : public recstoreps::ParameterService::Service {
- public:
-  ParameterServiceImpl(CachePS *cache_ps) { 
-    cache_ps_ = cache_ps; 
+public:
+  ParameterServiceImpl(CachePS* cache_ps) {
+    cache_ps_   = cache_ps;
     start_time_ = std::chrono::steady_clock::now();
   }
   void ResetMetrics() {
     total_get_requests_ = 0;
     total_put_requests_ = 0;
-    total_get_keys_ = 0;
-    total_put_keys_ = 0;
-    total_get_bytes_ = 0;
-    total_put_bytes_ = 0;
-    start_time_ = std::chrono::steady_clock::now();
+    total_get_keys_     = 0;
+    total_put_keys_     = 0;
+    total_get_bytes_    = 0;
+    total_put_bytes_    = 0;
+    start_time_         = std::chrono::steady_clock::now();
   }
-  void PrintMetrics(const std::string& table_name = "grpc_ps_server_metrics", 
-    const std::string& unique_id = "default_server") {
-    auto now = std::chrono::steady_clock::now();
+  void PrintMetrics(const std::string& table_name = "grpc_ps_server_metrics",
+                    const std::string& unique_id  = "default_server") {
+    auto now         = std::chrono::steady_clock::now();
     double elapsed_s = std::chrono::duration<double>(now - start_time_).count();
     if (elapsed_s > 0) {
-
-      double overall_qps = (total_get_requests_ + total_put_requests_) / elapsed_s;
-      double overall_throughput_mbps = ((total_get_bytes_ + total_put_bytes_) / 1024.0 / 1024.0) / elapsed_s;
+      double overall_qps =
+          (total_get_requests_ + total_put_requests_) / elapsed_s;
+      double overall_throughput_mbps =
+          ((total_get_bytes_ + total_put_bytes_) / 1024.0 / 1024.0) / elapsed_s;
 
       // Report QPS and throughput metrics
-      
+
       report(table_name.c_str(), unique_id.c_str(), "overall_qps", overall_qps);
-      report(table_name.c_str(), unique_id.c_str(), "overall_throughput_mbps", overall_throughput_mbps);
+      report(table_name.c_str(),
+             unique_id.c_str(),
+             "overall_throughput_mbps",
+             overall_throughput_mbps);
     }
-    
-    }
- private:
-  Status GetParameter(ServerContext *context,
-                      const GetParameterRequest *request,
-                      GetParameterResponse *reply) override {
+  }
+
+private:
+  Status GetParameter(ServerContext* context,
+                      const GetParameterRequest* request,
+                      GetParameterResponse* reply) override {
     base::ConstArray<uint64_t> keys_array(request->keys());
     bool isPerf = request->has_perf() && request->perf();
     if (isPerf) {
@@ -110,8 +115,9 @@ class ParameterServiceImpl final
     return Status::OK;
   }
 
-  Status Command(ServerContext *context, const CommandRequest *request,
-                 CommandResponse *reply) override {
+  Status Command(ServerContext* context,
+                 const CommandRequest* request,
+                 CommandResponse* reply) override {
     if (request->command() == PSCommand::CLEAR_PS) {
       LOG(WARNING) << "[PS Command] Clear All";
       cache_ps_->Clear();
@@ -125,11 +131,11 @@ class ParameterServiceImpl final
         LOG(WARNING) << fmt::format("emb_file {}: {}", i, request->arg2()[i]);
       }
       std::vector<std::string> arg1;
-      for (auto &each : request->arg1()) {
+      for (auto& each : request->arg1()) {
         arg1.push_back(each);
       }
       std::vector<std::string> arg2;
-      for (auto &each : request->arg2()) {
+      for (auto& each : request->arg2()) {
         arg2.push_back(each);
       }
 
@@ -140,13 +146,13 @@ class ParameterServiceImpl final
     return Status::OK;
   }
 
-  Status PutParameter(ServerContext *context,
-                      const PutParameterRequest *request,
-                      PutParameterResponse *reply) override {
-    const ParameterCompressReader *reader =
-        reinterpret_cast<const ParameterCompressReader *>(
+  Status PutParameter(ServerContext* context,
+                      const PutParameterRequest* request,
+                      PutParameterResponse* reply) override {
+    const ParameterCompressReader* reader =
+        reinterpret_cast<const ParameterCompressReader*>(
             request->parameter_value().data());
-    int size = reader->item_size();
+    int size             = reader->item_size();
     uint64_t total_bytes = 0;
     for (int i = 0; i < size; i++) {
       cache_ps_->PutSingleParameter(reader->item(i), 0);
@@ -158,21 +164,18 @@ class ParameterServiceImpl final
     return Status::OK;
   }
 
-  Status UpdateParameter(ServerContext *context,
-                         const UpdateParameterRequest *request,
-                         UpdateParameterResponse *reply) override {
-    
-  }
+  Status UpdateParameter(ServerContext* context,
+                         const UpdateParameterRequest* request,
+                         UpdateParameterResponse* reply) override {}
 
-  Status InitEmbeddingTable(ServerContext *context,
-                         const InitEmbeddingTableRequest *request,
-                         InitEmbeddingTableResponse *reply) override {
-   
+  Status InitEmbeddingTable(ServerContext* context,
+                            const InitEmbeddingTableRequest* request,
+                            InitEmbeddingTableResponse* reply) override {
     return Status::OK;
   }
 
- private:
-  CachePS *cache_ps_;
+private:
+  CachePS* cache_ps_;
   std::atomic<uint64_t> total_get_requests_{0};
   std::atomic<uint64_t> total_put_requests_{0};
   std::atomic<uint64_t> total_get_keys_{0};
@@ -184,97 +187,101 @@ class ParameterServiceImpl final
 
 namespace recstore {
 class GRPCParameterServer : public BaseParameterServer {
- public:
+public:
   GRPCParameterServer() = default;
 
   void Run() {
     // 检查是否配置了多分片
-    int num_shards = 1;  // 默认单分片
+    int num_shards = 1; // 默认单分片
     if (config_["cache_ps"].contains("num_shards")) {
-        num_shards = config_["cache_ps"]["num_shards"];
+      num_shards = config_["cache_ps"]["num_shards"];
     }
-    
+
     if (num_shards > 1) {
-        // 多服务器启动逻辑
-        std::cout << "启动分布式参数服务器，分片数量: " << num_shards << std::endl;
-        
-        if (!config_["cache_ps"].contains("servers")) {
-            LOG(FATAL) << "配置了 num_shards > 1 但缺少 servers 配置";
-            return;
-        }
-        
-        auto servers = config_["cache_ps"]["servers"];
-        if (servers.size() != num_shards) {
-            LOG(FATAL) << "servers 配置数量 (" << servers.size() 
-                      << ") 与 num_shards (" << num_shards << ") 不匹配";
-            return;
-        }
-        
-        std::vector<std::thread> server_threads;
-        
-        for (auto& server_config : servers) {
-            server_threads.emplace_back([this, server_config]() {
-                std::string host = server_config["host"];
-                int port = server_config["port"];
-                int shard = server_config["shard"];
-                
-                std::string server_address = host + ":" + std::to_string(port);
-                auto cache_ps = std::make_unique<CachePS>(config_["cache_ps"]);
-                ParameterServiceImpl service(cache_ps.get());
-                
-                grpc::EnableDefaultHealthCheckService(true);
-                grpc::reflection::InitProtoReflectionServerBuilderPlugin();
-                ServerBuilder builder;
-                builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
-                builder.RegisterService(&service);
-                std::unique_ptr<Server> server(builder.BuildAndStart());
-                std::cout << "Server shard " << shard << " listening on " << server_address << std::endl;
-                server->Wait();
-            });
-        }
-        
-        // 等待所有服务器线程
-        for (auto& t : server_threads) {
-            t.join();
-        }
-    } else {
-        // 单服务器启动逻辑
-        std::cout << "启动单参数服务器" << std::endl;
-        std::string server_address("0.0.0.0:15000");
-        auto cache_ps = std::make_unique<CachePS>(config_["cache_ps"]);
-        ParameterServiceImpl service(cache_ps.get());
+      // 多服务器启动逻辑
+      std::cout << "启动分布式参数服务器，分片数量: " << num_shards
+                << std::endl;
 
-        std::atomic<bool> metrics_running{true};
-        std::thread metrics_thread([&service, &metrics_running]() {
-            while (metrics_running) {
-                std::this_thread::sleep_for(std::chrono::seconds(10));
-                service.PrintMetrics();
-                service.ResetMetrics();
-            }
+      if (!config_["cache_ps"].contains("servers")) {
+        LOG(FATAL) << "配置了 num_shards > 1 但缺少 servers 配置";
+        return;
+      }
+
+      auto servers = config_["cache_ps"]["servers"];
+      if (servers.size() != num_shards) {
+        LOG(FATAL) << "servers 配置数量 (" << servers.size()
+                   << ") 与 num_shards (" << num_shards << ") 不匹配";
+        return;
+      }
+
+      std::vector<std::thread> server_threads;
+
+      for (auto& server_config : servers) {
+        server_threads.emplace_back([this, server_config]() {
+          std::string host = server_config["host"];
+          int port         = server_config["port"];
+          int shard        = server_config["shard"];
+
+          std::string server_address = host + ":" + std::to_string(port);
+          auto cache_ps = std::make_unique<CachePS>(config_["cache_ps"]);
+          ParameterServiceImpl service(cache_ps.get());
+
+          grpc::EnableDefaultHealthCheckService(true);
+          grpc::reflection::InitProtoReflectionServerBuilderPlugin();
+          ServerBuilder builder;
+          builder.AddListeningPort(
+              server_address, grpc::InsecureServerCredentials());
+          builder.RegisterService(&service);
+          std::unique_ptr<Server> server(builder.BuildAndStart());
+          std::cout << "Server shard " << shard << " listening on "
+                    << server_address << std::endl;
+          server->Wait();
         });
+      }
 
-        grpc::EnableDefaultHealthCheckService(true);
-        grpc::reflection::InitProtoReflectionServerBuilderPlugin();
-        ServerBuilder builder;
-        builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
-        builder.RegisterService(&service);
-        std::unique_ptr<Server> server(builder.BuildAndStart());
-        std::cout << "Server listening on " << server_address << std::endl;
-        server->Wait();
+      // 等待所有服务器线程
+      for (auto& t : server_threads) {
+        t.join();
+      }
+    } else {
+      // 单服务器启动逻辑
+      std::cout << "启动单参数服务器" << std::endl;
+      std::string server_address("0.0.0.0:15000");
+      auto cache_ps = std::make_unique<CachePS>(config_["cache_ps"]);
+      ParameterServiceImpl service(cache_ps.get());
 
-        metrics_running = false;
-        if (metrics_thread.joinable()) {
-            metrics_thread.join();
+      std::atomic<bool> metrics_running{true};
+      std::thread metrics_thread([&service, &metrics_running]() {
+        while (metrics_running) {
+          std::this_thread::sleep_for(std::chrono::seconds(10));
+          service.PrintMetrics();
+          service.ResetMetrics();
         }
+      });
+
+      grpc::EnableDefaultHealthCheckService(true);
+      grpc::reflection::InitProtoReflectionServerBuilderPlugin();
+      ServerBuilder builder;
+      builder.AddListeningPort(
+          server_address, grpc::InsecureServerCredentials());
+      builder.RegisterService(&service);
+      std::unique_ptr<Server> server(builder.BuildAndStart());
+      std::cout << "Server listening on " << server_address << std::endl;
+      server->Wait();
+
+      metrics_running = false;
+      if (metrics_thread.joinable()) {
+        metrics_thread.join();
+      }
     }
   }
 };
 
 FACTORY_REGISTER(BaseParameterServer, GRPCParameterServer, GRPCParameterServer);
 
-}  // namespace recstore
+} // namespace recstore
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   folly::Init(&argc, &argv);
   xmh::Reporter::StartReportThread(2000);
   std::ifstream config_file(FLAGS_config_path);

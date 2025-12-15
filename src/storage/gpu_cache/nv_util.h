@@ -47,4 +47,4 @@ inline void switch_to_dev(const void* ptr) {
   }
 }
 
-}  // namespace nv
+} // namespace nv

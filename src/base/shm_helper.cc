@@ -2,11 +2,11 @@
 #include <string>
 #include "shm_helper.h"
 
-int sharedMemoryCreate(const char *name, size_t sz, sharedMemoryInfo *info) {
+int sharedMemoryCreate(const char* name, size_t sz, sharedMemoryInfo* info) {
 #if defined(WIN32) || defined(_WIN32) || defined(WIN64) || defined(_WIN64)
-  info->size = sz;
-  info->shmHandle = CreateFileMapping(INVALID_HANDLE_VALUE, NULL,
-                                      PAGE_READWRITE, 0, (DWORD)sz, name);
+  info->size      = sz;
+  info->shmHandle = CreateFileMapping(
+      INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, (DWORD)sz, name);
   if (info->shmHandle == 0) {
     return GetLastError();
   }
@@ -41,7 +41,7 @@ int sharedMemoryCreate(const char *name, size_t sz, sharedMemoryInfo *info) {
 #endif
 }
 
-int sharedMemoryOpen(const char *name, size_t sz, sharedMemoryInfo *info) {
+int sharedMemoryOpen(const char* name, size_t sz, sharedMemoryInfo* info) {
 #if defined(WIN32) || defined(_WIN32) || defined(WIN64) || defined(_WIN64)
   info->size = sz;
 
@@ -73,7 +73,7 @@ int sharedMemoryOpen(const char *name, size_t sz, sharedMemoryInfo *info) {
 #endif
 }
 
-void sharedMemoryClose(sharedMemoryInfo *info) {
+void sharedMemoryClose(sharedMemoryInfo* info) {
 #if defined(WIN32) || defined(_WIN32) || defined(WIN64) || defined(_WIN64)
   if (info->addr) {
     UnmapViewOfFile(info->addr);

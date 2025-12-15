@@ -1,3 +1,1 @@
-namespace recstore{
-	
-}
+namespace recstore {}

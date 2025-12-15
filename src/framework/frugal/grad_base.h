@@ -25,41 +25,41 @@
 namespace recstore {
 
 class GraphEnv {
- public:
-  static GraphEnv *instance_;
+public:
+  static GraphEnv* instance_;
 
-  static void Init(const std::string &json_str,
-                   const std::vector<std::vector<int64_t>> &cached_range,
+  static void Init(const std::string& json_str,
+                   const std::vector<std::vector<int64_t>>& cached_range,
                    int64_t nr_graph_node) {
     if (instance_ == nullptr)
       instance_ = new GraphEnv(json_str, cached_range, nr_graph_node);
   }
 
-  static GraphEnv *GetInstance() {
+  static GraphEnv* GetInstance() {
     CHECK(instance_ != nullptr);
     return instance_;
   }
 
- private:
-  GraphEnv(const std::string &json_str,
-           const std::vector<std::vector<int64_t>> &cached_range,
+private:
+  GraphEnv(const std::string& json_str,
+           const std::vector<std::vector<int64_t>>& cached_range,
            int64_t nr_graph_node)
       : full_emb_("full_emb",
                   IPCTensorFactory::FindIPCTensorFromName("full_emb")) {
-    cached_range_ = cached_range;
-    auto json_config = json::parse(json_str);
-    num_gpus_ = json_config.at("num_gpus");
-    L_ = json_config.at("L");
+    cached_range_         = cached_range;
+    auto json_config      = json::parse(json_str);
+    num_gpus_             = json_config.at("num_gpus");
+    L_                    = json_config.at("L");
     kForwardItersPerStep_ = json_config.at("kForwardItersPerStep");
-    clr_ = json_config.at("clr");
-    backgrad_init_ = json_config.at("backgrad_init");
+    clr_                  = json_config.at("clr");
+    backgrad_init_        = json_config.at("backgrad_init");
     // full_emb_ = IPCTensorFactory::FindIPCTensorFromName("full_emb");
 
     nr_graph_node_ = nr_graph_node;
     LOG(WARNING) << folly::sformat("KGCacheController, config={}", json_str);
   }
 
- public:
+public:
   void RegTensorsPerProcess() {
     LOG(INFO) << "GraphEnv RegTensorsPerProcess";
     // IPCTensorFactory::ListIPCTensors();
@@ -110,7 +110,7 @@ class GraphEnv {
     }
   }
 
- public:
+public:
   //  config
   int num_gpus_;
   int L_;
@@ -144,9 +144,9 @@ class GraphEnv {
 };
 
 class GradProcessingBase {
- public:
-  GradProcessingBase(const std::string &json_str,
-                     const std::vector<std::vector<int64_t>> &cached_range)
+public:
+  GradProcessingBase(const std::string& json_str,
+                     const std::vector<std::vector<int64_t>>& cached_range)
       : json_config_(json::parse(json_str)),
         full_emb_(GraphEnv::GetInstance()->full_emb_),
         cache_per_rank_(GraphEnv::GetInstance()->cache_per_rank_),
@@ -168,19 +168,19 @@ class GradProcessingBase {
         //
         cached_id_circle_buffer_(
             GraphEnv::GetInstance()->cached_id_circle_buffer_),
-        processOneStepNegThread_(&GradProcessingBase::ProcessOneStepNegThread,
-                                 this) {
+        processOneStepNegThread_(
+            &GradProcessingBase::ProcessOneStepNegThread, this) {
 #ifndef USE_NEG_THREAD
     processOneStepNegThread_.join();
 #endif
     pthread_setname_np(pthread_self(), "ProcessBackward");
-    cached_range_ = cached_range;
-    num_gpus_ = json_config_.at("num_gpus");
-    L_ = json_config_.at("L");
-    kForwardItersPerStep_ = json_config_.at("kForwardItersPerStep");
-    clr_ = json_config_.at("clr");
-    update_cache_use_omp_ = json_config_.value("update_cache_use_omp", 1);
-    update_pq_use_omp_ = json_config_.value("update_pq_use_omp", 2);
+    cached_range_          = cached_range;
+    num_gpus_              = json_config_.at("num_gpus");
+    L_                     = json_config_.at("L");
+    kForwardItersPerStep_  = json_config_.at("kForwardItersPerStep");
+    clr_                   = json_config_.at("clr");
+    update_cache_use_omp_  = json_config_.value("update_cache_use_omp", 1);
+    update_pq_use_omp_     = json_config_.value("update_pq_use_omp", 2);
     nr_background_threads_ = json_config_.value("nr_background_threads", 8);
 
     if (backgrad_init_ == "cpu") {
@@ -201,14 +201,14 @@ class GradProcessingBase {
     isInitialized_ = true;
   }
 
-  static std::vector<torch::Tensor> split_keys_to_shards(
-      const torch::Tensor keys,
-      std::vector<std::vector<int64_t>> cached_range) {
+  static std::vector<torch::Tensor>
+  split_keys_to_shards(const torch::Tensor keys,
+                       std::vector<std::vector<int64_t>> cached_range) {
     std::vector<torch::Tensor> in_each_rank_cache_mask;
     int num_gpus = cached_range.size();
     for (int shard_no = 0; shard_no < num_gpus; shard_no++) {
       int64_t start = cached_range[shard_no][0];
-      int64_t end = cached_range[shard_no][1];
+      int64_t end   = cached_range[shard_no][1];
 
       torch::Tensor in_this_rank =
           keys.greater_equal(start).logical_and(keys.less(end));
@@ -220,11 +220,11 @@ class GradProcessingBase {
   virtual void StopThreads() {
     stop_processOneStepNegThread_flag_.store(true);
     processOneStepNegThread_ping_.store(true);
-  #ifdef USE_NEG_THREAD
+#ifdef USE_NEG_THREAD
     LOG(WARNING) << "before processOneStepNegThread_.join();";
     processOneStepNegThread_.join();
     LOG(WARNING) << "after processOneStepNegThread_.join();";
-  #endif
+#endif
   };
 
   virtual void StartThreads() {}
@@ -232,7 +232,8 @@ class GradProcessingBase {
   virtual void ProcessOneStepNegThread() {
 #ifdef USE_NEG_THREAD
     pthread_setname_np(pthread_self(), "ProcessBackward NegThread");
-    LOG(WARNING) << "TID of ProcessBackward NegThread is "<< base::GetThreadId();
+    LOG(WARNING) << "TID of ProcessBackward NegThread is "
+                 << base::GetThreadId();
 #else
     return;
 #endif
@@ -243,7 +244,8 @@ class GradProcessingBase {
     while (!stop_processOneStepNegThread_flag_.load()) {
       while (processOneStepNegThread_ping_.load() == false)
         ;
-      if (stop_processOneStepNegThread_flag_.load() == true) return;
+      if (stop_processOneStepNegThread_flag_.load() == true)
+        return;
 
       auto input_keys_neg_per_rank_tensors =
           SlicedTensor::BatchConvertToTensors(input_keys_neg_per_rank_);
@@ -261,7 +263,8 @@ class GradProcessingBase {
       }
 
       ProcessBackward(input_keys_neg_per_rank_tensors,
-                      backward_grads_neg_per_rank_tensors, now_step_.load());
+                      backward_grads_neg_per_rank_tensors,
+                      now_step_.load());
 
       processOneStepNegThread_ping_ = false;
     }
@@ -293,8 +296,8 @@ class GradProcessingBase {
       UpdateCache(input_keys_per_rank_tensors, backward_grads_per_rank_tensors);
     }
 
-    ProcessBackward(input_keys_per_rank_tensors,
-                    backward_grads_per_rank_tensors, step_no);
+    ProcessBackward(
+        input_keys_per_rank_tensors, backward_grads_per_rank_tensors, step_no);
 
 #ifdef USE_NEG_THREAD
     if (kForwardItersPerStep_ > 1) {
@@ -320,13 +323,14 @@ class GradProcessingBase {
       }
 
       ProcessBackward(input_keys_neg_per_rank_tensors,
-                      backward_grads_neg_per_rank_tensors, step_no);
+                      backward_grads_neg_per_rank_tensors,
+                      step_no);
     }
 #endif
   }
 
-  virtual void ProcessBackward(const std::vector<torch::Tensor> &input_keys,
-                               const std::vector<torch::Tensor> &input_grads,
+  virtual void ProcessBackward(const std::vector<torch::Tensor>& input_keys,
+                               const std::vector<torch::Tensor>& input_grads,
                                int step_no) = 0;
 
   virtual void BlockToStepN(int step_no) = 0;
@@ -334,8 +338,8 @@ class GradProcessingBase {
   /*-------- BOOST SHUFFLE VERSION ---------*/
   std::pair<std::vector<std::vector<torch::Tensor>>,
             std::vector<std::vector<torch::Tensor>>>
-  Boost_ShuffleKeysAndGrads(const std::vector<torch::Tensor> &input_keys,
-                            const std::vector<torch::Tensor> &input_grads) {
+  Boost_ShuffleKeysAndGrads(const std::vector<torch::Tensor>& input_keys,
+                            const std::vector<torch::Tensor>& input_grads) {
     int num_gpus_ = input_keys.size();
     // auto _start = std::chrono::high_resolution_clock::now();
 
@@ -369,8 +373,8 @@ class GradProcessingBase {
     //           << " Execution time: " << duration.count() << " seconds."
     //           << std::endl;
 
-    return std::make_pair(shuffled_keys_in_each_rank_cache,
-                          shuffled_grads_in_each_rank_cache);
+    return std::make_pair(
+        shuffled_keys_in_each_rank_cache, shuffled_grads_in_each_rank_cache);
   }
 
   //  cached_range:
@@ -382,8 +386,8 @@ class GradProcessingBase {
   //        ]
   std::pair<std::vector<std::vector<torch::Tensor>>,
             std::vector<std::vector<torch::Tensor>>>
-  ShuffleKeysAndGrads(const std::vector<torch::Tensor> &input_keys,
-                      const std::vector<torch::Tensor> &input_grads) {
+  ShuffleKeysAndGrads(const std::vector<torch::Tensor>& input_keys,
+                      const std::vector<torch::Tensor>& input_grads) {
 #ifdef USE_BOOST_SHUFFLE
     return Boost_ShuffleKeysAndGrads(input_keys, input_grads);
 #endif
@@ -404,8 +408,8 @@ class GradProcessingBase {
       std::vector<torch::Tensor> sharded_keys_in_this_rank =
           TensorUtil::IndexVectors(input_keys[rank], in_each_rank_cache_mask);
       std::vector<torch::Tensor> sharded_grads_in_this_rank =
-          TensorUtil::IndexVectorsDebug(input_grads[rank],
-                                        in_each_rank_cache_mask);
+          TensorUtil::IndexVectorsDebug(
+              input_grads[rank], in_each_rank_cache_mask);
 
 // shuffle keys and grads
 #pragma omp critical
@@ -419,28 +423,28 @@ class GradProcessingBase {
       }
     }
     // shuffle done
-    return std::make_pair(shuffled_keys_in_each_rank_cache,
-                          shuffled_grads_in_each_rank_cache);
+    return std::make_pair(
+        shuffled_keys_in_each_rank_cache, shuffled_grads_in_each_rank_cache);
   }
 
- private:
+private:
   virtual void UpdateCache(
-      const std::vector<torch::Tensor> &input_keys_per_rank_tensors,
-      const std::vector<torch::Tensor> &backward_grads_per_rank_tensors) {
+      const std::vector<torch::Tensor>& input_keys_per_rank_tensors,
+      const std::vector<torch::Tensor>& backward_grads_per_rank_tensors) {
     xmh::Timer timer_ShuffleKeysAndGrads("ProcessBack:CacheShuffle");
     auto [shuffled_keys_in_each_rank_cache, shuffled_grads_in_each_rank_cache] =
-        ShuffleKeysAndGrads(input_keys_per_rank_tensors,
-                            backward_grads_per_rank_tensors);
+        ShuffleKeysAndGrads(
+            input_keys_per_rank_tensors, backward_grads_per_rank_tensors);
     timer_ShuffleKeysAndGrads.end();
 
-    SyncUpdateCache(shuffled_keys_in_each_rank_cache,
-                    shuffled_grads_in_each_rank_cache);
+    SyncUpdateCache(
+        shuffled_keys_in_each_rank_cache, shuffled_grads_in_each_rank_cache);
   }
 
-  void SyncUpdateCache(const std::vector<std::vector<torch::Tensor>>
-                           &shuffled_keys_in_each_rank_cache,
-                       const std::vector<std::vector<torch::Tensor>>
-                           &shuffled_grads_in_each_rank_cache) {
+  void SyncUpdateCache(const std::vector<std::vector<torch::Tensor>>&
+                           shuffled_keys_in_each_rank_cache,
+                       const std::vector<std::vector<torch::Tensor>>&
+                           shuffled_grads_in_each_rank_cache) {
     xmh::Timer timer_SyncUpdateCache("ProcessBack:UpdateCache");
 #pragma omp parallel for num_threads(num_gpus_) if (update_cache_use_omp_)
     for (int rank = 0; rank < num_gpus_; rank++) {
@@ -453,14 +457,14 @@ class GradProcessingBase {
             cached_range_[rank][0];
         auto shuffle_grads_cuda =
             shuffled_grads_in_each_rank_cache[rank][j].to(device, true);
-        cache_per_rank_[rank].index_add_(0, in_rank_keys,
-                                         -clr_ * shuffle_grads_cuda);
+        cache_per_rank_[rank].index_add_(
+            0, in_rank_keys, -clr_ * shuffle_grads_cuda);
       }
     }
     timer_SyncUpdateCache.end();
   }
 
- protected:
+protected:
   // config
   nlohmann::json json_config_;
   int num_gpus_;
@@ -471,31 +475,31 @@ class GradProcessingBase {
 
   // state tensor
   // torch::Tensor &full_emb_;
-  CPUEmbedding &full_emb_;
+  CPUEmbedding& full_emb_;
 
-  std::vector<torch::Tensor> &cache_per_rank_;
+  std::vector<torch::Tensor>& cache_per_rank_;
   bool isInitialized_ = false;
 
   enum BackGradInitEnum { CPU, GPU, BOTH };
   BackGradInitEnum backgrad_init_enum_;
 
   // runtime tensor
-  std::vector<torch::Tensor> &step_tensor_per_rank_;
-  std::vector<torch::Tensor> &circle_buffer_end_per_rank_;
-  std::vector<c10::intrusive_ptr<SlicedTensor>> &input_keys_per_rank_;
-  std::vector<c10::intrusive_ptr<SlicedTensor>> &input_keys_neg_per_rank_;
+  std::vector<torch::Tensor>& step_tensor_per_rank_;
+  std::vector<torch::Tensor>& circle_buffer_end_per_rank_;
+  std::vector<c10::intrusive_ptr<SlicedTensor>>& input_keys_per_rank_;
+  std::vector<c10::intrusive_ptr<SlicedTensor>>& input_keys_neg_per_rank_;
 
-  std::vector<c10::intrusive_ptr<SlicedTensor>> &backward_grads_per_rank_;
-  std::vector<c10::intrusive_ptr<SlicedTensor>> &backward_grads_neg_per_rank_;
+  std::vector<c10::intrusive_ptr<SlicedTensor>>& backward_grads_per_rank_;
+  std::vector<c10::intrusive_ptr<SlicedTensor>>& backward_grads_neg_per_rank_;
 
   std::string backgrad_init_;
   // for backgrad_init_ = both
-  std::vector<c10::intrusive_ptr<SlicedTensor>> &backward_grads_gpu_;
-  std::vector<c10::intrusive_ptr<SlicedTensor>> &backward_grads_neg_gpu_;
+  std::vector<c10::intrusive_ptr<SlicedTensor>>& backward_grads_gpu_;
+  std::vector<c10::intrusive_ptr<SlicedTensor>>& backward_grads_neg_gpu_;
 
   // different rank's L buffer
-  std::vector<std::vector<c10::intrusive_ptr<SlicedTensor>>>
-      &cached_id_circle_buffer_;
+  std::vector<std::vector<c10::intrusive_ptr<SlicedTensor>>>&
+      cached_id_circle_buffer_;
 
   std::atomic_int now_step_;
   std::thread processOneStepNegThread_;
@@ -507,31 +511,33 @@ class GradProcessingBase {
 };
 
 class GradSyncProcessing : public GradProcessingBase {
- public:
-  GradSyncProcessing(const std::string &json_str,
-                     const std::vector<std::vector<int64_t>> &cached_range)
+public:
+  GradSyncProcessing(const std::string& json_str,
+                     const std::vector<std::vector<int64_t>>& cached_range)
       : GradProcessingBase(json_str, cached_range) {}
 
-  void ProcessBackward(const std::vector<torch::Tensor> &input_keys,
-                       const std::vector<torch::Tensor> &input_grads,
+  void ProcessBackward(const std::vector<torch::Tensor>& input_keys,
+                       const std::vector<torch::Tensor>& input_grads,
                        int step_no) override {
     xmh::Timer timer_ShuffleKeysAndGrads("ProcessBack:Shuffle");
     auto [shuffled_keys_in_each_rank, shuffled_grads_in_each_rank] =
         ShuffleKeysAndGrads(input_keys, input_grads);
     timer_ShuffleKeysAndGrads.end();
 
-    SGDGradUpdate(shuffled_keys_in_each_rank, shuffled_grads_in_each_rank,
-                  input_keys, input_grads);
+    SGDGradUpdate(shuffled_keys_in_each_rank,
+                  shuffled_grads_in_each_rank,
+                  input_keys,
+                  input_grads);
   }
 
   void BlockToStepN(int step_no) {}
 
-  void SGDGradUpdate(const std::vector<std::vector<torch::Tensor>>
-                         &shuffled_keys_in_each_rank_cache,
-                     const std::vector<std::vector<torch::Tensor>>
-                         &shuffled_grads_in_each_rank_cache,
-                     const std::vector<torch::Tensor> &input_keys,
-                     const std::vector<torch::Tensor> &input_grads) {
+  void SGDGradUpdate(const std::vector<std::vector<torch::Tensor>>&
+                         shuffled_keys_in_each_rank_cache,
+                     const std::vector<std::vector<torch::Tensor>>&
+                         shuffled_grads_in_each_rank_cache,
+                     const std::vector<torch::Tensor>& input_keys,
+                     const std::vector<torch::Tensor>& input_grads) {
     // SyncUpdateCache(shuffled_keys_in_each_rank_cache,
     //                 shuffled_grads_in_each_rank_cache);
 #if 0
@@ -557,11 +563,11 @@ class GradSyncProcessing : public GradProcessingBase {
     xmh::Timer timer_UpdateFull("ProcessBack:UpdateFull");
     // update full emb
     for (int rank = 0; rank < num_gpus_; rank++) {
-      full_emb_.index_add_(0, input_keys[rank].cpu(),
-                           (-clr_) * input_grads[rank].cpu());
+      full_emb_.index_add_(
+          0, input_keys[rank].cpu(), (-clr_) * input_grads[rank].cpu());
     }
     timer_UpdateFull.end();
   }
 };
 
-}  // namespace recstore
+} // namespace recstore

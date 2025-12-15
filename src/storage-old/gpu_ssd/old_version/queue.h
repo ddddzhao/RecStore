@@ -7,21 +7,19 @@
 #include "settings.h"
 #include "ctrl.h"
 
-
-struct __align__(64) QueuePair
-{
-    uint32_t            pageSize;
-    uint32_t            blockSize;
-    uint32_t            nvmNamespace;
-    uint32_t            pagesPerChunk;
-    bool                doubleBuffered;
-    void*               prpList;
-    uint64_t            prpListIoAddr;
-    nvm_queue_t         sq;
-    nvm_queue_t         cq;
+struct __align__(64) QueuePair {
+  uint32_t pageSize;
+  uint32_t blockSize;
+  uint32_t nvmNamespace;
+  uint32_t pagesPerChunk;
+  bool doubleBuffered;
+  void* prpList;
+  uint64_t prpListIoAddr;
+  nvm_queue_t sq;
+  nvm_queue_t cq;
 };
 
-
-__host__ DmaPtr prepareQueuePair(QueuePair& qp, const Controller& ctrl, const Settings& settings);
+__host__ DmaPtr prepareQueuePair(
+    QueuePair& qp, const Controller& ctrl, const Settings& settings);
 
 #endif

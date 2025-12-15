@@ -20,7 +20,8 @@ DEFINE_string(db, "KVEngineExtendibleHash", "");
 DEFINE_int64(key_space_m, 10, "key space in million");
 DEFINE_string(dataset, "zipfian", "zipfian/dataset");
 
-DEFINE_double(warmup_ratio, 0.8,
+DEFINE_double(warmup_ratio,
+              0.8,
               "bulk load (warmup_ratio * key_space) kvs in DB");
 DEFINE_int32(warmup_thread_num, 36, "");
 DEFINE_bool(preload, true, "whether to preload the DB");
@@ -43,11 +44,11 @@ uint64_t tp[kMaxThread][8];
 
 std::atomic_bool start_flag;
 
-BaseKV *base_kv;
+BaseKV* base_kv;
 
 std::atomic<bool> stop_flag;
 
-void thread_run(int tid, SampleReader *sample) {
+void thread_run(int tid, SampleReader* sample) {
   base::auto_bind_core();
 
   base::PseudoRandom random_engine(tid);
@@ -74,7 +75,7 @@ void thread_run(int tid, SampleReader *sample) {
   }
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
   folly::init(&argc, &argv);
   xmh::Reporter::StartReportThread();
 
@@ -85,24 +86,27 @@ int main(int argc, char *argv[]) {
   else
     path = folly::sformat("/media/aep{}/", FLAGS_numa_id);
 
-  bool shuffle_load = false;
+  bool shuffle_load                                = false;
   base::PMMmapRegisterCenter::GetConfig().use_dram = FLAGS_use_dram;
-  base::PMMmapRegisterCenter::GetConfig().numa_id = FLAGS_numa_id;
+  base::PMMmapRegisterCenter::GetConfig().numa_id  = FLAGS_numa_id;
 
   base::global_socket_id = FLAGS_numa_id;
   LOG(INFO) << "set NUMA ID = " << FLAGS_numa_id;
 
   BaseKVConfig config;
-  config.json_config_["path"] = path + FLAGS_db;
-  config.json_config_["capacity"] = FLAGS_key_space_m * 1024 * 1024LL;
+  config.json_config_["path"]       = path + FLAGS_db;
+  config.json_config_["capacity"]   = FLAGS_key_space_m * 1024 * 1024LL;
   config.json_config_["value_size"] = FLAGS_value_size;
   config.num_threads_ = std::max(FLAGS_thread_num, FLAGS_warmup_thread_num);
-  base_kv = base::Factory<BaseKV, const BaseKVConfig &>::NewInstance(FLAGS_db,
-                                                                     config);
+  base_kv =
+      base::Factory<BaseKV, const BaseKVConfig&>::NewInstance(FLAGS_db, config);
 
   LoadDBHelper load_db_helper(
-      base_kv, 0, FLAGS_warmup_thread_num,
-      FLAGS_key_space_m * 1024 * 1024LL * FLAGS_warmup_ratio, FLAGS_value_size);
+      base_kv,
+      0,
+      FLAGS_warmup_thread_num,
+      FLAGS_key_space_m * 1024 * 1024LL * FLAGS_warmup_ratio,
+      FLAGS_value_size);
   if (FLAGS_preload) {
     load_db_helper.PreLoadDB(shuffle_load);
     base_kv->Util();
@@ -118,10 +122,13 @@ int main(int argc, char *argv[]) {
 
   std::vector<std::unique_ptr<SampleReader>> sample_readers;
   for (int _ = 0; _ < FLAGS_thread_num; _++) {
-    SampleReader *each;
+    SampleReader* each;
     if (FLAGS_dataset == "zipfian")
-      each = new ZipfianSampleReader(_, FLAGS_key_space_m * FLAGS_warmup_ratio,
-                                     FLAGS_zipf_theta, FLAGS_batch_read_count);
+      each = new ZipfianSampleReader(
+          _,
+          FLAGS_key_space_m * FLAGS_warmup_ratio,
+          FLAGS_zipf_theta,
+          FLAGS_batch_read_count);
     else if (FLAGS_dataset == "dataset") {
       LOG(FATAL) << "We can not make the production dataset public.";
       // each = new PetDatasetSampleReader(dataset_reader, _,
@@ -166,9 +173,10 @@ int main(int argc, char *argv[]) {
       all_tp += tp[i][0];
     }
     uint64_t cap = all_tp - pre_tp;
-    pre_tp = all_tp;
+    pre_tp       = all_tp;
 
-    printf("throughput %.4f Mreq/s %.4f Mkv/s\n", cap * 1.0 / microseconds,
+    printf("throughput %.4f Mreq/s %.4f Mkv/s\n",
+           cap * 1.0 / microseconds,
            cap * (double)FLAGS_batch_read_count / microseconds);
     running_seconds++;
 

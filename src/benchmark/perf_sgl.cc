@@ -33,7 +33,7 @@ DEFINE_int32(fake_pm_read_times, 0, "# of fake pm read, for motivation exp");
 
 // void FOLLY_NOINLINE ReadUint64(uint64_t *ptr) { asm volatile("" : "=m"(*ptr)
 // : "r"(*ptr)); }
-void FOLLY_ALWAYS_INLINE ReadUint64(uint64_t *ptr) {
+void FOLLY_ALWAYS_INLINE ReadUint64(uint64_t* ptr) {
   asm volatile("" : "=m"(*ptr) : "r"(*ptr));
 }
 
@@ -41,12 +41,12 @@ class Client {
 public:
   Client(int thread_count) {
     BenchmarkClientCommon::BenchmarkClientCommonArgs args;
-    args.thread_count_ = thread_count;
-    args.async_req_num_ = FLAGS_async_req_num;
+    args.thread_count_     = thread_count;
+    args.async_req_num_    = FLAGS_async_req_num;
     args.batch_read_count_ = FLAGS_batch_read_count;
-    args.key_space_M_ = FLAGS_key_space_m;
-    args.zipf_theta_ = FLAGS_zipf_theta;
-    args.value_size_ = FLAGS_value_size;
+    args.key_space_M_      = FLAGS_key_space_m;
+    args.zipf_theta_       = FLAGS_zipf_theta;
+    args.value_size_       = FLAGS_value_size;
     benchmark_client_.reset(new BenchmarkClientCommon(args));
   }
   void Main() { benchmark_client_->Run(); }
@@ -58,7 +58,8 @@ private:
 class Server {
 public:
   Server(int thread_count)
-      : thread_count_(thread_count), get_parameter_timer_("GetParameter", 1),
+      : thread_count_(thread_count),
+        get_parameter_timer_("GetParameter", 1),
         value_timer_("Value Part", 1) {
     ClusterInfo cluster;
     cluster.serverNR = 1;
@@ -66,7 +67,7 @@ public:
     DSMConfig config(CacheConfig(), cluster, 0, false);
 
     mmap_base_addr_ =
-        (char *)base::PMMmapRegisterCenter::GetInstance()->Register(
+        (char*)base::PMMmapRegisterCenter::GetInstance()->Register(
             "/media/aep0/perf_sgl-placeholder/value",
             FLAGS_key_space_m * 1024 * 1024LL * FLAGS_value_size);
 
@@ -74,10 +75,10 @@ public:
         base::PMMmapRegisterCenter::GetInstance()->ForRDMAMemoryRegion();
 
     config.baseAddr = pm_address_for_check_.first;
-    config.dsmSize = pm_address_for_check_.second;
+    config.dsmSize  = pm_address_for_check_.second;
 
-    LOG(INFO) << "register MR start =" << (void *)config.baseAddr
-              << ", end = " << (void *)(config.baseAddr + config.dsmSize)
+    LOG(INFO) << "register MR start =" << (void*)config.baseAddr
+              << ", end = " << (void*)(config.baseAddr + config.dsmSize)
               << ", size = " << config.dsmSize;
 
     if (FLAGS_preload) {
@@ -110,31 +111,32 @@ private:
 #pragma omp parallel for num_threads(36)
     for (int64_t i = 0; i < key_space; i++) {
       for (int j = 0; j < FLAGS_value_size / sizeof(float); j++) {
-        *(float *)&mmap_base_addr_[i * FLAGS_value_size + j * sizeof(float)] =
-            i;
+        *(float*)&mmap_base_addr_[i * FLAGS_value_size + j * sizeof(float)] = i;
       }
     }
   }
-  void RpcGetServerServingThreadIDs(RawMessage *recv) {
+  void RpcGetServerServingThreadIDs(RawMessage* recv) {
     CHECK_EQ(recv->type, GET_SERVER_THREADIDS);
     static int serving_thread_id = 0;
-    auto m = RawMessage::get_new_msg();
-    m->type = RESP_GET_SERVER_THREADIDS;
+    auto m                       = RawMessage::get_new_msg();
+    m->type                      = RESP_GET_SERVER_THREADIDS;
     std::vector<int> thread_ids;
     thread_ids.push_back(serving_thread_id);
     serving_thread_id = (serving_thread_id + 1) % thread_count_;
     thread_ids.push_back(serving_thread_id);
     serving_thread_id = (serving_thread_id + 1) % thread_count_;
     dsm_->rpc_call(
-        m, recv->node_id, recv->t_id,
-        Slice((char *)thread_ids.data(), thread_ids.size() * sizeof(int)));
+        m,
+        recv->node_id,
+        recv->t_id,
+        Slice((char*)thread_ids.data(), thread_ids.size() * sizeof(int)));
   }
 
   void PollingThread(int thread_id) {
     auto_bind_core();
     dsm_->registerThread();
-    auto msg = RawMessage::get_new_msg();
-    auto &sourcelist = sourcelists_[thread_id];
+    auto msg         = RawMessage::get_new_msg();
+    auto& sourcelist = sourcelists_[thread_id];
     while (1) {
       msg->clear();
       uint64_t wr_id;
@@ -156,8 +158,8 @@ private:
         Slice extra_data = recv->get_string(cursor);
 
         int batch_get_kv_count = extra_data.len / sizeof(uint64_t);
-        base::ConstArray<uint64_t> keys((uint64_t *)extra_data.s,
-                                        batch_get_kv_count);
+        base::ConstArray<uint64_t> keys(
+            (uint64_t*)extra_data.s, batch_get_kv_count);
 #ifdef RPC_DEBUG
         LOG(INFO) << "recv->msg_size=" << extra_data.len;
         LOG(INFO) << "server batch gets: " << keys.Debug();
@@ -169,21 +171,24 @@ private:
           for (int _ = 0; _ < FLAGS_fake_pm_read_times; _++) {
             uint64_t mmap_range_size = pm_address_for_check_.second;
             ReadUint64(
-                (uint64_t *)(GetHash(base::AsyncTimeHelper::GetTimestamp()) %
-                                 (mmap_range_size - 8) +
-                             mmap_base_addr_));
+                (uint64_t*)(GetHash(base::AsyncTimeHelper::GetTimestamp()) %
+                                (mmap_range_size - 8) +
+                            mmap_base_addr_));
           }
           // generate fake PM read done
           values.emplace_back(
-              (float *)(keys[i] * FLAGS_value_size + mmap_base_addr_),
+              (float*)(keys[i] * FLAGS_value_size + mmap_base_addr_),
               FLAGS_value_size / sizeof(float));
         }
         CHECK_EQ(values.size(), batch_get_kv_count);
 #ifdef RPC_DEBUG
         int emb_dim = FLAGS_value_size / sizeof(float);
         for (int i = 0; i < batch_get_kv_count; i++) {
-          XDebug::AssertTensorEq(values[i].Data(), emb_dim, keys[i],
-                                 "server embedding check error");
+          XDebug::AssertTensorEq(
+              values[i].Data(),
+              emb_dim,
+              keys[i],
+              "server embedding check error");
         }
 #endif
         if (thread_id == 0)
@@ -194,20 +199,24 @@ private:
             sourcelist[i].size = values[i].binary_size();
 #ifdef RPC_DEBUG
             CHECK_GE((uint64_t)sourcelist[i].addr, pm_address_for_check_.first);
-            CHECK_LT((uint64_t)sourcelist[i].addr + sourcelist[i].size,
-                     pm_address_for_check_.first +
-                         pm_address_for_check_.second);
+            CHECK_LT(
+                (uint64_t)sourcelist[i].addr + sourcelist[i].size,
+                pm_address_for_check_.first + pm_address_for_check_.second);
             CHECK_EQ(sourcelist[i].size, FLAGS_value_size);
 #endif
           }
 
           GlobalAddress gaddr = recv->receive_gaddr;
           CHECK_EQ(gaddr.nodeID, 1) << "now we have only 1 client";
-          CHECK(dsm_->write_from_pm_vec(sourcelist.data(), batch_get_kv_count,
-                                        gaddr, 1, FLAGS_sge_per_wr));
+          CHECK(dsm_->write_from_pm_vec(
+              sourcelist.data(),
+              batch_get_kv_count,
+              gaddr,
+              1,
+              FLAGS_sge_per_wr));
         } else {
           auto buf = dsm_->get_rdma_buffer();
-          int acc = 0;
+          int acc  = 0;
           for (int i = 0; i < batch_get_kv_count; i++) {
             memcpy(buf + acc, values[i].binary_data(), values[i].binary_size());
             acc += values[i].binary_size();
@@ -228,22 +237,22 @@ private:
     }
   }
 
-  DSM *dsm_;
+  DSM* dsm_;
   std::vector<std::vector<SourceList>> sourcelists_;
   std::vector<std::thread> threads_;
   int thread_count_;
   xmh::Timer get_parameter_timer_;
   xmh::Timer value_timer_;
   std::pair<uint64_t, uint64_t> pm_address_for_check_;
-  char *mmap_base_addr_;
+  char* mmap_base_addr_;
 };
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
   folly::init(&argc, &argv);
   xmh::Reporter::StartReportThread();
 
   base::PMMmapRegisterCenter::GetConfig().use_dram = FLAGS_use_dram;
-  base::PMMmapRegisterCenter::GetConfig().numa_id = 0;
+  base::PMMmapRegisterCenter::GetConfig().numa_id  = 0;
 
   if (FLAGS_actor == "server") {
     system(

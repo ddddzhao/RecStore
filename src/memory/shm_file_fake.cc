@@ -3,13 +3,12 @@
 
 namespace base {
 
-bool ShmFile::Initialize(const std::string &filename, int64 size) {
-
+bool ShmFile::Initialize(const std::string& filename, int64 size) {
   {
     static std::mutex m;
     std::lock_guard<std::mutex> _(m);
     data_ =
-        (char *)PMMmapRegisterCenter::GetInstance()->Register(filename, size);
+        (char*)PMMmapRegisterCenter::GetInstance()->Register(filename, size);
     filename_ = filename;
   }
 

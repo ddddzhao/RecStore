@@ -272,7 +272,7 @@ torchrun --nnodes 1 \
     --mmap_mode \
     --embedding_dim 128 \
     "${extra_args[@]}" \
-    --adagrad > training_output.$dataset_size.$mode.$(date +%Y%m%d%H%M%S).log 2>&1
+    --adagrad > training_output.${dataset_size}.${mode}.pf$( [ "$enable_prefetch" = true ] && echo "$prefetch_depth" || echo 0 ).f$( [ "$fuse_emb_tables" = true ] && echo 1 || echo 0 ).$(date +%Y%m%d%H%M%S).log 2>&1
 
 
 end_time=$(date +%s.%N)

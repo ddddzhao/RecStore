@@ -19,8 +19,8 @@ struct EmbeddingModelClonableImpl
   torch::nn::Embedding embedding;
   torch::Device device;
 
-  EmbeddingModelClonableImpl(int64_t vocab_size, int64_t embed_size,
-                             torch::Device device)
+  EmbeddingModelClonableImpl(
+      int64_t vocab_size, int64_t embed_size, torch::Device device)
       : embedding(torch::nn::EmbeddingOptions(vocab_size, embed_size)),
         device(device) {
     std::cout << "EmbeddingModelClonableImpl" << std::endl;
@@ -36,10 +36,9 @@ struct EmbeddingModelClonableImpl
   }
 
   torch::Tensor forward(torch::Tensor indices) {
-    // std::cout << "in forward weight" << embedding->weight.sizes() << std::endl;
-    // indices = indices.to(embedding->weight.device());
-    // indices don't need gradient
-    // indices.set_requires_grad(false);
+    // std::cout << "in forward weight" << embedding->weight.sizes() <<
+    // std::endl; indices = indices.to(embedding->weight.device()); indices
+    // don't need gradient indices.set_requires_grad(false);
     auto res = embedding->forward(indices);
     // std::cout << "in forward" << res.device() << std::endl;
     // std::cout << "in forward" << res.sizes() << std::endl;
@@ -52,10 +51,13 @@ struct EmbeddingModelClonableImpl
 TORCH_MODULE(EmbeddingModelClonable);
 
 template <typename DataLoader>
-void train(int32_t epoch, EmbeddingModelClonable &model, torch::Device device,
-           DataLoader &data_loader, torch::optim::Optimizer &optimizer) {
+void train(int32_t epoch,
+           EmbeddingModelClonable& model,
+           torch::Device device,
+           DataLoader& data_loader,
+           torch::optim::Optimizer& optimizer) {
   model->train();
-  for (auto &batch : data_loader) {
+  for (auto& batch : data_loader) {
     xmh::Timer timer("OneStep");
     auto data = batch.data();
     optimizer.zero_grad();
@@ -66,7 +68,6 @@ void train(int32_t epoch, EmbeddingModelClonable &model, torch::Device device,
     auto output =
         torch::nn::parallel::data_parallel(model, *data, devices, device);
 
-	
     assert(output.device() == torch::Device(torch::kCUDA, 0));
 
     // std::cout << "Embedding output: " << output.sizes() << std::endl;
@@ -85,10 +86,9 @@ void train(int32_t epoch, EmbeddingModelClonable &model, torch::Device device,
   }
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   folly::init(&argc, &argv, true);
   xmh::Reporter::StartReportThread();
-
 
   int batch_size = FLAGS_batch_size;
 
@@ -97,12 +97,11 @@ int main(int argc, char **argv) {
   auto device = torch::cuda::is_available() ? torch::Device(torch::kCUDA, 0)
                                             : torch::kCPU;
 
-  void *indices_buffers = nullptr;
-  indices_buffers = malloc(
-                    sizeof(int64_t) * batch_size * FLAGS_sample_number);
-  
+  void* indices_buffers = nullptr;
+  indices_buffers = malloc(sizeof(int64_t) * batch_size * FLAGS_sample_number);
+
   for (int64_t i = 0; i < batch_size * FLAGS_sample_number; i++) {
-    ((int64_t *)indices_buffers)[i] = 0;
+    ((int64_t*)indices_buffers)[i] = 0;
   }
   torch::Tensor indices = torch::from_blob(
       indices_buffers, {FLAGS_sample_number, batch_size}, torch::kInt64);
@@ -114,15 +113,15 @@ int main(int argc, char **argv) {
 
   EmbeddingModelClonable model(FLAGS_vocab_size, FLAGS_embed_size, device);
   model->to(device);
-  for (const auto &p : model->parameters()) {
+  for (const auto& p : model->parameters()) {
     std::cout << "model parameters" << p.device() << std::endl;
   }
 
   // 定义优化器
-  torch::optim::SGD optimizer(model->parameters(),
-                              torch::optim::SGDOptions(0.001));
+  torch::optim::SGD optimizer(
+      model->parameters(), torch::optim::SGDOptions(0.001));
 
-	while(1){
+  while (1) {
     train(0, model, device, *train_loader, optimizer);
   }
 

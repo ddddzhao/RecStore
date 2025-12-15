@@ -41,18 +41,19 @@ using boost::coroutines2::coroutine;
 
 DEFINE_string(port, "15000", "Server Port");
 
-DEFINE_string(config_path, RECSTORE_PATH "/recstore_config.json",
+DEFINE_string(config_path,
+              RECSTORE_PATH "/recstore_config.json",
               "config file path");
 
 const int GET_PATA_REQ_NUM = 10240;
 const int PUT_PATA_REQ_NUM = 6400;
-const int COMMAND_REQ_NUM = 100;
-const int RESERVE_NUM = 512;
+const int COMMAND_REQ_NUM  = 100;
+const int RESERVE_NUM      = 512;
 const int TOTAL_NUM =
     GET_PATA_REQ_NUM + PUT_PATA_REQ_NUM + COMMAND_REQ_NUM + RESERVE_NUM;
 
 class DispatchParam {
- public:
+public:
   enum Status {
     RECEIVED,
     PROCESSED,
@@ -66,12 +67,12 @@ class DispatchParam {
   RequestType request_type;
   ::grpc::ServerContext ctx;
   xmh::Timer timer;
-  DispatchParam(RequestType request_type, const char *name)
+  DispatchParam(RequestType request_type, const char* name)
       : status(PROCESSED), request_type(request_type), timer(name) {}
 };
 
 class PutRequestParam : public DispatchParam {
- public:
+public:
   recstoreps::PutParameterRequest request;
   ServerAsyncResponseWriter<PutParameterResponse> responder;
   PutParameterResponse reply;
@@ -79,7 +80,7 @@ class PutRequestParam : public DispatchParam {
 };
 
 class GetRequestParam : public DispatchParam {
- public:
+public:
   recstoreps::GetParameterRequest request;
   ServerAsyncResponseWriter<GetParameterResponse> responder;
   GetParameterResponse reply;
@@ -87,7 +88,7 @@ class GetRequestParam : public DispatchParam {
 };
 
 class CommandRequestParam : public DispatchParam {
- public:
+public:
   recstoreps::CommandRequest request;
   ServerAsyncResponseWriter<CommandResponse> responder;
   CommandResponse reply;
@@ -97,15 +98,15 @@ class CommandRequestParam : public DispatchParam {
 
 class ParameterServiceImpl final
     : public recstoreps::ParameterService::AsyncService {
- private:
-  CachePS *cache_ps_;
+private:
+  CachePS* cache_ps_;
   int thread_num_;
   int corotine_per_thread_;
   std::vector<std::thread> thread_pool;
   std::atomic<uint64_t> get_key_cnt;
 
- public:
-  atomic_queue::AtomicQueue<DispatchParam *, TOTAL_NUM> task_queue;
+public:
+  atomic_queue::AtomicQueue<DispatchParam*, TOTAL_NUM> task_queue;
 
   void Monitor() {
     while (true) {
@@ -117,8 +118,8 @@ class ParameterServiceImpl final
     }
   }
 
-  ParameterServiceImpl(CachePS *cache_ps, int thread_num,
-                       int corotine_per_thread)
+  ParameterServiceImpl(
+      CachePS* cache_ps, int thread_num, int corotine_per_thread)
       : cache_ps_(cache_ps),
         thread_num_(thread_num),
         corotine_per_thread_(corotine_per_thread) {
@@ -130,10 +131,11 @@ class ParameterServiceImpl final
     get_key_cnt = 0;
   }
 
-  void DoGetParameter(coroutine<void>::push_type &sink,
-                      GetRequestParam *under_process, int tid) {
-    GetParameterRequest *request = &under_process->request;
-    GetParameterResponse *reply = &under_process->reply;
+  void DoGetParameter(coroutine<void>::push_type& sink,
+                      GetRequestParam* under_process,
+                      int tid) {
+    GetParameterRequest* request = &under_process->request;
+    GetParameterResponse* reply  = &under_process->reply;
     base::ConstArray<uint64_t> keys_array(request->keys());
     bool isPerf = request->has_perf() && request->perf();
     if (isPerf) {
@@ -159,26 +161,28 @@ class ParameterServiceImpl final
       timer_ps_get_req.destroy();
     }
     under_process->timer.end();
-    under_process->responder.Finish(under_process->reply, Status::OK,
-                                    under_process);
+    under_process->responder.Finish(
+        under_process->reply, Status::OK, under_process);
     get_key_cnt.fetch_add(keys_array.Size());
   }
 
-  void DoPutParameter(coroutine<void>::push_type &sink,
-                      PutRequestParam *under_process, int tid) {
-    PutParameterRequest *request = &under_process->request;
-    const ParameterCompressReader *reader =
-        reinterpret_cast<const ParameterCompressReader *>(
+  void DoPutParameter(coroutine<void>::push_type& sink,
+                      PutRequestParam* under_process,
+                      int tid) {
+    PutParameterRequest* request = &under_process->request;
+    const ParameterCompressReader* reader =
+        reinterpret_cast<const ParameterCompressReader*>(
             request->parameter_value().data());
     cache_ps_->PutParameter(sink, reader, tid);
     under_process->timer.end();
-    under_process->responder.Finish(under_process->reply, Status::OK,
-                                    under_process);
+    under_process->responder.Finish(
+        under_process->reply, Status::OK, under_process);
   }
 
-  void DoCommand(coroutine<void>::push_type &sink,
-                 CommandRequestParam *under_process, int tid) {
-    CommandRequest *request = &under_process->request;
+  void DoCommand(coroutine<void>::push_type& sink,
+                 CommandRequestParam* under_process,
+                 int tid) {
+    CommandRequest* request = &under_process->request;
     xmh::Timer timer_ps_get_req("PS Command Req");
     if (request->command() == PSCommand::CLEAR_PS) {
       LOG(WARNING) << "[PS Command] Clear All";
@@ -193,45 +197,46 @@ class ParameterServiceImpl final
         LOG(WARNING) << fmt::format("emb_file {}: {}", i, request->arg2()[i]);
       }
       std::vector<std::string> arg1;
-      for (auto &each : request->arg1()) {
+      for (auto& each : request->arg1()) {
         arg1.push_back(each);
       }
       std::vector<std::string> arg2;
-      for (auto &each : request->arg2()) {
+      for (auto& each : request->arg2()) {
         arg2.push_back(each);
       }
       cache_ps_->Initialize(arg1, arg2);
     } else if (request->command() == PSCommand::LOAD_FAKE_DATA) {
-      uint64_t fake_data_size = *((uint64_t *)request->arg1(0).data());
+      uint64_t fake_data_size = *((uint64_t*)request->arg1(0).data());
       cache_ps_->LoadFakeData(fake_data_size);
     } else {
       LOG(FATAL) << "invalid command";
     }
     timer_ps_get_req.end();
     under_process->timer.end();
-    under_process->responder.Finish(under_process->reply, Status::OK,
-                                    under_process);
+    under_process->responder.Finish(
+        under_process->reply, Status::OK, under_process);
   }
 
-  static void worker_func(coroutine<void>::push_type &sink, int work_id,
-                          ParameterServiceImpl *service) {
-    DispatchParam *under_process;
+  static void worker_func(coroutine<void>::push_type& sink,
+                          int work_id,
+                          ParameterServiceImpl* service) {
+    DispatchParam* under_process;
     while (true) {
       if (service->task_queue.try_pop(under_process)) {
         if (under_process->request_type == DispatchParam::RequestType::GET) {
           service->DoGetParameter(
-              sink, static_cast<GetRequestParam *>(under_process), work_id);
+              sink, static_cast<GetRequestParam*>(under_process), work_id);
           continue;
         }
         if (under_process->request_type == DispatchParam::RequestType::PUT) {
           service->DoPutParameter(
-              sink, static_cast<PutRequestParam *>(under_process), work_id);
+              sink, static_cast<PutRequestParam*>(under_process), work_id);
           continue;
         }
         if (under_process->request_type ==
             DispatchParam::RequestType::COMMAND) {
           service->DoCommand(
-              sink, static_cast<CommandRequestParam *>(under_process), work_id);
+              sink, static_cast<CommandRequestParam*>(under_process), work_id);
           continue;
         }
       } else {
@@ -245,7 +250,7 @@ class ParameterServiceImpl final
     CHECK_LE(corotine_per_thread_, kMaxWorker);
     base::bind_core(work_id);
     using std::placeholders::_1;
-    coroutine<void>::pull_type *worker[kMaxWorker];
+    coroutine<void>::pull_type* worker[kMaxWorker];
     for (int i = 0; i < corotine_per_thread_; i++) {
       worker[i] = new coroutine<void>::pull_type{
           std::bind(worker_func, _1, work_id * corotine_per_thread_ + i, this)};
@@ -260,15 +265,15 @@ class ParameterServiceImpl final
 
 namespace recstore {
 class GRPCParameterServer : public BaseParameterServer {
- public:
+public:
   GRPCParameterServer() = default;
 
   void Run() {
     std::string server_address("0.0.0.0:");
     server_address += FLAGS_port;
     auto cache_ps = std::make_unique<CachePS>(config_["cache_ps"]);
-    ParameterServiceImpl service(cache_ps.get(), FLAGS_thread_num,
-                                 FLAGS_corotine_per_thread);
+    ParameterServiceImpl service(
+        cache_ps.get(), FLAGS_thread_num, FLAGS_corotine_per_thread);
     grpc::EnableDefaultHealthCheckService(true);
     grpc::reflection::InitProtoReflectionServerBuilderPlugin();
     ServerBuilder builder;
@@ -285,29 +290,41 @@ class GRPCParameterServer : public BaseParameterServer {
     // Wait for the server to shutdown. Note that some other thread must be
     // responsible for shutting down the server for this call to ever return.
     for (int i = 0; i < GET_PATA_REQ_NUM; i++) {
-      GetRequestParam *get_params = new GetRequestParam();
-      service.RequestGetParameter(&get_params->ctx, &get_params->request,
-                                  &get_params->responder, cq.get(), cq.get(),
-                                  get_params);
+      GetRequestParam* get_params = new GetRequestParam();
+      service.RequestGetParameter(
+          &get_params->ctx,
+          &get_params->request,
+          &get_params->responder,
+          cq.get(),
+          cq.get(),
+          get_params);
     }
     for (int i = 0; i < PUT_PATA_REQ_NUM; i++) {
-      PutRequestParam *put_params = new PutRequestParam();
-      service.RequestPutParameter(&put_params->ctx, &put_params->request,
-                                  &put_params->responder, cq.get(), cq.get(),
-                                  put_params);
+      PutRequestParam* put_params = new PutRequestParam();
+      service.RequestPutParameter(
+          &put_params->ctx,
+          &put_params->request,
+          &put_params->responder,
+          cq.get(),
+          cq.get(),
+          put_params);
     }
     for (int i = 0; i < COMMAND_REQ_NUM; i++) {
-      CommandRequestParam *command_params = new CommandRequestParam();
-      service.RequestCommand(&command_params->ctx, &command_params->request,
-                             &command_params->responder, cq.get(), cq.get(),
-                             command_params);
+      CommandRequestParam* command_params = new CommandRequestParam();
+      service.RequestCommand(
+          &command_params->ctx,
+          &command_params->request,
+          &command_params->responder,
+          cq.get(),
+          cq.get(),
+          command_params);
     }
     while (true) {
-      void *tag;
+      void* tag;
       bool ok;
       GPR_ASSERT(cq->Next(&tag, &ok));
       GPR_ASSERT(ok);
-      DispatchParam *param = static_cast<DispatchParam *>(tag);
+      DispatchParam* param = static_cast<DispatchParam*>(tag);
       if (param->status == DispatchParam::Status::PROCESSED) {
         param->status = DispatchParam::Status::RECEIVED;
         param->timer.start();
@@ -315,38 +332,51 @@ class GRPCParameterServer : public BaseParameterServer {
       } else {
         param->status = DispatchParam::PROCESSED;
         if (param->request_type == DispatchParam::RequestType::GET) {
-          GetRequestParam *param = static_cast<GetRequestParam *>(tag);
+          GetRequestParam* param = static_cast<GetRequestParam*>(tag);
           delete param;
           param = new GetRequestParam();
-          service.RequestGetParameter(&param->ctx, &param->request,
-                                      &param->responder, cq.get(), cq.get(),
-                                      param);
+          service.RequestGetParameter(
+              &param->ctx,
+              &param->request,
+              &param->responder,
+              cq.get(),
+              cq.get(),
+              param);
           continue;
         }
         if (param->request_type == DispatchParam::RequestType::PUT) {
-          PutRequestParam *param = static_cast<PutRequestParam *>(tag);
+          PutRequestParam* param = static_cast<PutRequestParam*>(tag);
           delete param;
           param = new PutRequestParam();
-          service.RequestPutParameter(&param->ctx, &param->request,
-                                      &param->responder, cq.get(), cq.get(),
-                                      param);
+          service.RequestPutParameter(
+              &param->ctx,
+              &param->request,
+              &param->responder,
+              cq.get(),
+              cq.get(),
+              param);
           continue;
         }
         if (param->request_type == DispatchParam::RequestType::COMMAND) {
-          CommandRequestParam *param = static_cast<CommandRequestParam *>(tag);
+          CommandRequestParam* param = static_cast<CommandRequestParam*>(tag);
           delete param;
           param = new CommandRequestParam();
-          service.RequestCommand(&param->ctx, &param->request,
-                                 &param->responder, cq.get(), cq.get(), param);
+          service.RequestCommand(
+              &param->ctx,
+              &param->request,
+              &param->responder,
+              cq.get(),
+              cq.get(),
+              param);
           continue;
         }
       }
     }
   }
 };
-}  // namespace recstore
+} // namespace recstore
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   std::ignore = folly::Init(&argc, &argv);
   xmh::Reporter::StartReportThread(2000);
   std::ifstream config_file(FLAGS_config_path);

@@ -8,7 +8,6 @@
 #include "ps/base_client.h"
 #include "third_party/Mayfly-main/include/Common.h"
 
-
 DEFINE_int32(thread_num, 1, "client thread num");
 DEFINE_int32(batch_read_count, 300, "");
 DEFINE_int32(async_req_num, 1, "");
@@ -20,18 +19,18 @@ DECLARE_int32(value_size);
 
 std::atomic<bool> stop{false};
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
   folly::init(&argc, &argv);
   xmh::Reporter::StartReportThread();
   BenchmarkClientCommon::BenchmarkClientCommonArgs args;
-  args.thread_count_ = FLAGS_thread_num;
-  args.async_req_num_ = FLAGS_async_req_num;
+  args.thread_count_     = FLAGS_thread_num;
+  args.async_req_num_    = FLAGS_async_req_num;
   args.batch_read_count_ = FLAGS_batch_read_count;
-  args.key_space_M_ = FLAGS_key_space_m;
-  args.zipf_theta_ = FLAGS_zipf_theta;
-  args.value_size_ = FLAGS_value_size;
-  args.dataset_ = FLAGS_dataset;
-  args.read_ratio_ = FLAGS_read_ratio;
+  args.key_space_M_      = FLAGS_key_space_m;
+  args.zipf_theta_       = FLAGS_zipf_theta;
+  args.value_size_       = FLAGS_value_size;
+  args.dataset_          = FLAGS_dataset;
+  args.read_ratio_       = FLAGS_read_ratio;
 
   std::unique_ptr<BenchmarkClientCommon> benchmark_client_;
   benchmark_client_.reset(new BenchmarkClientCommon(args));

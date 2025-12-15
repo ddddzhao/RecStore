@@ -9,7 +9,7 @@
 
 namespace base {
 constexpr int kMaxLogicCoreCnt = 100;
-constexpr int kMaxSocketCnt = 2;
+constexpr int kMaxSocketCnt    = 2;
 extern int global_socket_id;
 
 inline void bind_core(int n) {
@@ -23,4 +23,4 @@ inline void bind_core(int n) {
 
 void auto_bind_core(void);
 
-}  // namespace base
+} // namespace base

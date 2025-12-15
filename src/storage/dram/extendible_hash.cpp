@@ -152,7 +152,7 @@ Block** Block::Split(void) {
   int64_t lock = 0;
   if (!CAS(&sema, &lock, -1))
     return nullptr;
-  // cout << this << " " << this_thread::get_id() << endl;
+    // cout << this << " " << this_thread::get_id() << endl;
 
 #ifdef INPLACE
   Block** split = new Block*[2];
@@ -319,7 +319,7 @@ RETRY:
     timer.Start();
     Block** s = target->Split();
     timer.Stop();
-    //breakdown += timer.GetSeconds();
+    // breakdown += timer.GetSeconds();
     if (s == nullptr) {
       // another thread is doing split
       goto RETRY;

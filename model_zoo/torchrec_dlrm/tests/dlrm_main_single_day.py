@@ -506,7 +506,7 @@ def main(argv: List[str]) -> None:
                 train_auroc += auroc_score.item()
                 num_batches += 1
                 
-                if batch_idx % 100 == 0:
+                if batch_idx:
                     print(f"Batch {batch_idx}: Loss={loss.item():.4f} AUROC={auroc_score.item():.4f} FWD(ms)={fwd_ms:.2f} BWD(ms)={bwd_ms:.2f}")
             
             avg_train_loss = train_loss / num_batches
