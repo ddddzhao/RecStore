@@ -18,7 +18,7 @@ class PrefetchingIterator:
         self._feature_names = list(ebc_module._config_names.keys())
         self._ebc = ebc_module
         self._thread: Optional[threading.Thread] = None
-        self._queue: "queue.Queue[Optional[Tuple[torch.Tensor, KeyedJaggedTensor, torch.Tensor, Dict[str, int]]]]" = queue.Queue(maxsize=self._prefetch_count)
+        self._queue: "queue.Queue[Optional[Tuple[torch.Tensor, KeyedJaggedTensor, torch.Tensor, Dict[str, object]]]]" = queue.Queue(maxsize=self._prefetch_count)
         self._stop = False
         self._exhausted = False
         self._iter = iter(self._dataloader)
@@ -30,8 +30,9 @@ class PrefetchingIterator:
                 batch = next(self._iter)
                 dense, sparse, labels = batch
                 if self._ebc._enable_fusion and self._ebc._master_config is not None:
-                    self._ebc.issue_fused_prefetch(sparse)
-                    self._queue.put((dense, sparse, labels, {}))
+                    handle, num_ids, issue_ts, fused_ids_cpu, inverse = self._ebc.issue_fused_prefetch(sparse, record_handle=False)
+                    # Pass fused prefetch metadata alongside the batch to avoid race on shared state.
+                    self._queue.put((dense, sparse, labels, {"__fused_handle": (handle, num_ids, issue_ts, fused_ids_cpu, inverse)}))
                 else:
                     handles: Dict[str, int] = {}
                     import time
@@ -77,7 +78,14 @@ class PrefetchingIterator:
                 # Unexpected None (error path), mark exhausted to avoid hang
                 self._exhausted = True
             raise StopIteration
-        return item
+
+        dense, sparse, labels, handles = item
+        # Deliver fused prefetch handle for this batch right before consumption to avoid being overwritten by later prefetches.
+        fused_key = "__fused_handle"
+        if fused_key in handles:
+            h, num_ids, issue_ts, fused_ids_cpu, inverse = handles.pop(fused_key)
+            self._ebc.set_fused_prefetch_handle(h, num_ids=num_ids, issue_ts=issue_ts, record_stats=True, fused_ids_cpu=fused_ids_cpu, fused_inverse=inverse)
+        return dense, sparse, labels, handles
 
     def stop(self, join: bool = False):
         self._stop = True

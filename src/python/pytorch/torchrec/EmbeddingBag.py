@@ -127,6 +127,10 @@ class RecStoreEmbeddingBagCollection(torch.nn.Module):
         self._prefetch_issue_latencies: List[float] = []  # currently producer-side if provided
         self._prefetch_total_ids: int = 0
 
+        # Cache for fused prefetch metadata (unique IDs and inverse) for one batch
+        self._fused_ids_cpu: torch.Tensor | None = None
+        self._fused_inverse: torch.Tensor | None = None
+
         for idx, config in enumerate(self._embedding_bag_configs):
             base_offset = (idx << self._fusion_k) if self._enable_fusion else 0
             self.kv_client.init_data(
@@ -171,25 +175,49 @@ class RecStoreEmbeddingBagCollection(torch.nn.Module):
                 # Unknown size, leave stats partial
         self._prefetch_handles = parsed
 
-    def set_fused_prefetch_handle(self, handle: int, num_ids: int | None = None, issue_ts: float | None = None):
+    def set_fused_prefetch_handle(
+        self,
+        handle: int,
+        num_ids: int | None = None,
+        issue_ts: float | None = None,
+        *,
+        record_stats: bool = True,
+        fused_ids_cpu: torch.Tensor | None = None,
+        fused_inverse: torch.Tensor | None = None,
+    ):
         """Set a single fused prefetch handle for the upcoming forward.
 
         Optionally record stats: number of ids and issue timestamp for latency accounting.
+        Extra fused_ids_cpu and fused_inverse are accepted for API compatibility with the
+        prefetcher; they are currently unused but kept to avoid argument errors when
+        passed through from the producer thread.
         """
         import time
         self._fused_prefetch_handle = int(handle)
         self._fused_prefetch_num_ids = int(num_ids) if num_ids is not None else 0
         self._fused_prefetch_issue_ts = float(issue_ts) if issue_ts is not None else time.time()
-        # Track in shared stats maps for unified reporting
-        self._prefetch_issue_ts[self._fused_prefetch_handle] = self._fused_prefetch_issue_ts
-        if self._fused_prefetch_num_ids:
-            self._prefetch_sizes[self._fused_prefetch_handle] = self._fused_prefetch_num_ids
-            self._prefetch_total_ids += self._fused_prefetch_num_ids
+        if record_stats:
+            # Track in shared stats maps for unified reporting
+            self._prefetch_issue_ts[self._fused_prefetch_handle] = self._fused_prefetch_issue_ts
+            if self._fused_prefetch_num_ids:
+                self._prefetch_sizes[self._fused_prefetch_handle] = self._fused_prefetch_num_ids
+                self._prefetch_total_ids += self._fused_prefetch_num_ids
+        # Store optional mapping so forward can avoid recomputing unique
+        self._fused_ids_cpu = fused_ids_cpu if fused_ids_cpu is not None else None
+        self._fused_inverse = fused_inverse if fused_inverse is not None else None
 
-    def issue_fused_prefetch(self, features: KeyedJaggedTensor) -> int:
-        """Compute fused global IDs for the given features and issue a single prefetch.
+    def issue_fused_prefetch(
+        self,
+        features: KeyedJaggedTensor,
+        *,
+        record_handle: bool = True,
+    ) -> int | Tuple[int, int, float, torch.Tensor, torch.Tensor]:
+        """Compute fused global IDs and issue a single prefetch.
 
-        Returns the prefetch handle. Use together with the next forward call.
+        When record_handle is True (default), the handle is stored on the module and the
+        handle is returned. When False, the caller receives a tuple with metadata so the
+        consumer can set the handle later without touching shared state in the producer
+        thread: (handle, num_ids, issue_ts, fused_ids_cpu, inverse).
         """
         import time
         if not self._enable_fusion or self._master_config is None:
@@ -209,10 +237,21 @@ class RecStoreEmbeddingBagCollection(torch.nn.Module):
                 fused_values = values + prefix
                 fused_values_list.append(fused_values)
         fused_values_all = torch.cat(fused_values_list, dim=0) if len(fused_values_list) > 0 else torch.empty((0,), dtype=torch.int64, device=device)
-        handle = self.kv_client.prefetch(fused_values_all)
-        # record
-        self.set_fused_prefetch_handle(handle, num_ids=int(fused_values_all.numel()), issue_ts=time.time())
-        return handle
+        fused_ids_cpu_full = fused_values_all.to("cpu") if fused_values_all.numel() > 0 else fused_values_all
+        # Deduplicate to reduce backend work and bandwidth; keep inverse for restore
+        if fused_ids_cpu_full.numel() > 0:
+            unique_ids, inverse = torch.unique(fused_ids_cpu_full, return_inverse=True)
+        else:
+            unique_ids = fused_ids_cpu_full
+            inverse = fused_ids_cpu_full
+        handle = self.kv_client.prefetch(unique_ids)
+        num_ids = int(fused_values_all.numel())
+        issue_ts = time.time()
+
+        if record_handle:
+            self.set_fused_prefetch_handle(handle, num_ids=num_ids, issue_ts=issue_ts, fused_ids_cpu=unique_ids, fused_inverse=inverse)
+            return handle
+        return handle, num_ids, issue_ts, unique_ids, inverse
 
     def forward(self, features: KeyedJaggedTensor) -> KeyedTensor:
         # Determine if we can enable fused single-call path safely
@@ -276,16 +315,24 @@ class RecStoreEmbeddingBagCollection(torch.nn.Module):
                 issue_latency = t_wait_start - (self._fused_prefetch_issue_ts or t_wait_start)
                 self._prefetch_issue_latencies.append(issue_latency)
                 used_fused_prefetch = True
+                # If backend returned unique rows, expand via stored inverse without recomputing unique
                 if all_embeddings.size(0) != fused_values_all.numel():
-                    unique_ids, inverse = torch.unique(fused_values_all, return_inverse=True)
-                    if all_embeddings.size(0) == unique_ids.size(0):
-                        all_embeddings = all_embeddings.index_select(0, inverse)
+                    inv = self._fused_inverse
+                    ids_cached = self._fused_ids_cpu
+                    if inv is not None and ids_cached is not None and all_embeddings.size(0) == ids_cached.numel():
+                        indexer = inv.to(device=all_embeddings.device, dtype=torch.long)
+                        all_embeddings = all_embeddings.index_select(0, indexer)
                     else:
-                        logging.warning(f"[EBC] Fused prefetch result size mismatch: got {all_embeddings.size(0)}, expected {fused_values_all.numel()}, falling back to pull.")
-                        all_embeddings = self.kv_client.pull(name=self._master_config.name, ids=cpu_ids)
-                        if compute_device.type == 'cuda':
-                            all_embeddings = all_embeddings.to(compute_device)
-                        used_fused_prefetch = False
+                        # Fallback: recompute unique/inverse and expand
+                        unique_ids, inverse = torch.unique(fused_values_all, return_inverse=True)
+                        if all_embeddings.size(0) == unique_ids.size(0):
+                            all_embeddings = all_embeddings.index_select(0, inverse)
+                        else:
+                            logging.warning(f"[EBC] Fused prefetch result size mismatch: got {all_embeddings.size(0)}, expected {fused_values_all.numel()}, falling back to pull.")
+                            all_embeddings = self.kv_client.pull(name=self._master_config.name, ids=cpu_ids)
+                            if compute_device.type == 'cuda':
+                                all_embeddings = all_embeddings.to(compute_device)
+                            used_fused_prefetch = False
             elif len(self._prefetch_handles) > 0:
                 # Gather per-feature prefetched embeddings in the same order
                 per_feature_embs: List[torch.Tensor] = []
@@ -388,6 +435,8 @@ class RecStoreEmbeddingBagCollection(torch.nn.Module):
                 self._fused_prefetch_handle = None
                 self._fused_prefetch_issue_ts = None
                 self._fused_prefetch_num_ids = 0
+                self._fused_ids_cpu = None
+                self._fused_inverse = None
             return out
 
         # Fallback: per-feature path (original behavior)
