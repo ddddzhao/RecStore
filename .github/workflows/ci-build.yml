@@ -97,13 +97,6 @@ jobs:
             build/packed-grpc-server.tar.gz
             build/packed-recstore-ops.tar.gz
 
-      # - name: Upload build directory
-      #   if: always()
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: build-folder
-      #     path: build/
-
       - name: Upload build artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -115,7 +108,7 @@ jobs:
             build/compile_commands.json
 
   run-grpc-server:
-    name: Run Packed GRPC Server
+    name: Run GRPC & Test OP
     needs: build
     runs-on: ubuntu-latest
     env:
@@ -132,7 +125,7 @@ jobs:
           set -euo pipefail
           export DEBIAN_FRONTEND=noninteractive
           bash ci/env/init_host_prereqs.sh
-          bash ci/fetch_ci.sh
+          # bash ci/fetch_ci.sh
         
       - name: Download torch wheel
         uses: actions/download-artifact@v4
@@ -198,12 +191,12 @@ jobs:
           PKG_ROOT=runner/extracted/package
           python3 ci/pack/runner.py "${PKG_ROOT}" bin/grpc_ps_server --ready-pattern "listening on" --timeout 180 --log runner/logs/grpc_ps_server_run.log --inject-rpath --keep-alive
 
-      - name: Show grpc_ps_server log
-        if: always()
-        run: |
-          set -euo pipefail
-          echo "===== grpc_ps_server_run.log ====="
-          cat runner/logs/grpc_ps_server_run.log || true
+      # - name: Show grpc_ps_server log
+      #   if: always()
+      #   run: |
+      #     set -euo pipefail
+      #     echo "===== grpc_ps_server_run.log ====="
+      #     cat runner/logs/grpc_ps_server_run.log || true
 
       - name: Run ci/test/test_op.sh
         run: |
