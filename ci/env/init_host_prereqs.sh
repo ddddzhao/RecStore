@@ -21,7 +21,9 @@ sudo apt-get install -y --no-install-recommends \
   zsh fzf google-perftools openssh-server software-properties-common \
   kmod libaio-dev
 
-# Ensure Boost is present (redundant but explicit for CMake FindBoost)
+sudo apt-get install -y --no-install-recommends \
+  pax-utils patchelf binutils chrpath
+
 sudo apt-get install -y --no-install-recommends libboost-all-dev
 
 pip3 install --no-cache-dir cmake numpy pandas scikit-learn ortools jupyter tqdm

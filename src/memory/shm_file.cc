@@ -2,6 +2,9 @@
 
 #include <algorithm>
 #include <iostream>
+#ifdef __linux__
+#include <execinfo.h>
+#endif
 
 namespace base {
 
@@ -58,16 +61,32 @@ bool ShmFile::InitializeDevDax(const std::string &filename, int64 size) {
 }
 
 bool ShmFile::Initialize(const std::string &filename, int64 size) {
+  LOG(INFO) << "[ShmFile::Initialize] type_=" << type_ << ", filename=" << filename << ", size=" << size;
+  if (!fs::exists("/dev/dax0.0") && type_ == "DRAM") {
+    LOG(INFO) << "[ShmFile::Initialize] /dev/dax0.0 not found; override type_ DRAM -> SSD";
+    type_ = "SSD";
+  }
+  #ifdef __linux__
+  void *bt[20];
+  int bt_size = ::backtrace(bt, 20);
+  char **bt_syms = ::backtrace_symbols(bt, bt_size);
+  LOG(INFO) << "[ShmFile::Initialize] Backtrace:";
+  for (int i = 0; i < bt_size; ++i) {
+    LOG(INFO) << bt_syms[i];
+  }
+  free(bt_syms);
+  #endif
   if (type_ == "DRAM" ) {
-    LOG(INFO) << "ShmFile, devdax mode" << "type:" << type_;
+    LOG(INFO) << "ShmFile, devdax mode, type_:" << type_ << ", filename:" << filename;
     return InitializeDevDax(filename, size);
   } 
   else if(type_ == "SSD" || filename.find("valid") != std::string::npos ){
-    LOG(INFO) << "ShmFile, fsdax mode" << "type:" << type_;
+    LOG(INFO) << "ShmFile, fsdax mode, type_:" << type_ << ", filename:" << filename;
     return InitializeFsDax(filename, size);
   }
   else {
-    LOG(INFO) << "Unsupport Medium!";
+    LOG(INFO) << "Unsupport Medium! type_:" << type_ << ", filename:" << filename;
+    return false;
   }
 }
 

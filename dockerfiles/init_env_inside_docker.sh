@@ -299,7 +299,11 @@ step_brpc() {
     cd ${PROJECT_PATH}/third_party/grpc/third_party/protobuf
     rm -rf _build
     mkdir _build && cd _build
-    cmake .. -DCMAKE_BUILD_TYPE=Release ${CMAKE_REQUIRE} -DCMAKE_INSTALL_PREFIX=${PROJECT_PATH}/third_party/protobuf-install
+    cmake .. -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        -DBUILD_SHARED_LIBS=ON \
+        ${CMAKE_REQUIRE} \
+        -DCMAKE_INSTALL_PREFIX=${PROJECT_PATH}/third_party/protobuf-install
     make ${MAKE_OPTS}
     make ${MAKE_OPTS} install
     
@@ -311,11 +315,11 @@ step_brpc() {
     # when cmake done please check the protobuf path is correct ${PROJECT_PATH}/third_party/protobuf-install
     # and check the openssl path is correct /usr/lib/x86_64-linux-gnu/libssl.so(system path)
     cmake ..   -DProtobuf_INCLUDE_DIR=${PROJECT_PATH}/third_party/protobuf-install/include \
-      -DProtobuf_LIBRARIES=${PROJECT_PATH}/third_party/protobuf-install/lib/libprotobuf.a   \
-      -DProtobuf_PROTOC_EXECUTABLE=${PROJECT_PATH}/third_party/protobuf-install/bin/protoc \
-      ${CMAKE_REQUIRE} \
-      -DCMAKE_INSTALL_PREFIX=${PROJECT_PATH}/third_party/brpc-install \
-      -DWITH_GLOG=ON
+        -DProtobuf_LIBRARIES=${PROJECT_PATH}/third_party/protobuf-install/lib/libprotobuf.so   \
+        -DProtobuf_PROTOC_EXECUTABLE=${PROJECT_PATH}/third_party/protobuf-install/bin/protoc \
+        ${CMAKE_REQUIRE} \
+        -DCMAKE_INSTALL_PREFIX=${PROJECT_PATH}/third_party/brpc-install \
+        -DWITH_GLOG=ON
     make ${MAKE_OPTS}
     make ${MAKE_OPTS} install
 }

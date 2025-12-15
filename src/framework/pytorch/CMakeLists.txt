@@ -10,7 +10,6 @@ find_package(Python 3.10 COMPONENTS Interpreter Development REQUIRED)
 add_library(recstore_torch_ops SHARED
     op_torch.cc
     ../op.cc
-    ../../grpc_ps/grpc_ps_client.cpp
 )
 
 target_compile_definitions(recstore_torch_ops PRIVATE _GLIBCXX_USE_CXX11_ABI=1)
@@ -32,10 +31,13 @@ find_package(Protobuf REQUIRED)
 find_package(gRPC REQUIRED)
 target_link_libraries(recstore_torch_ops PRIVATE
     grpc_ps_client
+    brpc_ps_client
     protobuf::libprotobuf
     gRPC::grpc++
     ${TORCH_LIBRARIES}
 )
+
+target_link_options(recstore_torch_ops PRIVATE -Wl,--no-as-needed)
 
 # Set the required C++ standard.
 set_target_properties(recstore_torch_ops PROPERTIES
