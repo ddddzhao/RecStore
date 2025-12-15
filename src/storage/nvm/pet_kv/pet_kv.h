@@ -23,15 +23,17 @@ namespace base {
 
 class PetKV {
   typedef PetHash<uint64, PetKVData, true> ShmKDoubleDict;
-  static constexpr int valid_file_size = 4;
+  static constexpr int valid_file_size           = 4;
   inline static const std::string valid_file_tag = "valid tag";
 
 public:
-  explicit PetKV(const std::string &shm_dir, int64 memory_size, int capacity,
+  explicit PetKV(const std::string& shm_dir,
+                 int64 memory_size,
+                 int capacity,
                  int pre_known_value_size = 0);
   ~PetKV();
 
-  bool Update(uint64 key, const char *log, int log_size);
+  bool Update(uint64 key, const char* log, int log_size);
 
   PetKVReadData Get(uint64 key) const {
     PetKVReadData read_data;
@@ -57,9 +59,9 @@ public:
 private:
   uint64_t start_ts_ = 0;
 
-  ShmKDoubleDict *dict_ = nullptr;
-  MallocApi *shm_malloc_;
-  ShmBaseRecycle *shm_recycle_;
+  ShmKDoubleDict* dict_ = nullptr;
+  MallocApi* shm_malloc_;
+  ShmBaseRecycle* shm_recycle_;
 
   ShmFile dict_shm_file_;
   ShmFile valid_shm_file_;
@@ -77,14 +79,21 @@ private:
 
 class PetMultiKV {
 public:
-  explicit PetMultiKV(const std::vector<std::string> &shm_dir, int shard_num,
-                      int64 shard_memory, int shard_cache_capacity,
+  explicit PetMultiKV(const std::vector<std::string>& shm_dir,
+                      int shard_num,
+                      int64 shard_memory,
+                      int shard_cache_capacity,
                       int pre_known_value_size = 0);
-  explicit PetMultiKV(const std::string &shm_dir, int shard_num,
-                      int64 shard_memory, int shard_cache_capacity,
+  explicit PetMultiKV(const std::string& shm_dir,
+                      int shard_num,
+                      int64 shard_memory,
+                      int shard_cache_capacity,
                       int pre_known_value_size = 0)
-      : PetMultiKV(std::vector<std::string>{shm_dir}, shard_num, shard_memory,
-                   shard_cache_capacity, pre_known_value_size) {}
+      : PetMultiKV(std::vector<std::string>{shm_dir},
+                   shard_num,
+                   shard_memory,
+                   shard_cache_capacity,
+                   pre_known_value_size) {}
   ~PetMultiKV() {
     for (auto shm_kv : shm_kv_)
       delete shm_kv;
@@ -93,12 +102,12 @@ public:
     return GetHashWithLevel(key, 1) % shard_num_;
   }
 
-  bool Update(uint64 key, const char *log, int log_size) {
+  bool Update(uint64 key, const char* log, int log_size) {
     return shm_kv_[GetShard(key)]->Update(key, log, log_size);
   }
 
   void BatchGet(base::ConstArray<uint64> keys,
-                std::vector<base::ConstArray<float>> *values) {
+                std::vector<base::ConstArray<float>>* values) {
     for (int i = 0; i < keys.Size(); i++) {
       auto key = keys[i];
       if (UNLIKELY(i != keys.Size() - 1)) {
@@ -107,8 +116,8 @@ public:
       }
       auto read_data = shm_kv_[GetShard(key)]->Get(key);
       CHECK_NE(read_data.size, 0);
-      values->emplace_back((float *)read_data.data,
-                           read_data.size / sizeof(float));
+      values->emplace_back(
+          (float*)read_data.data, read_data.size / sizeof(float));
     }
   }
 
@@ -126,7 +135,7 @@ public:
   }
 
   int shard_num() const { return shard_num_; }
-  const std::string &shm_dir() const { return shm_dir_.front(); }
+  const std::string& shm_dir() const { return shm_dir_.front(); }
 
 private:
   std::string shm_dir(int shard_id);
@@ -136,7 +145,7 @@ private:
   int shard_num_;
   int64 shard_memory_;
   int shard_cache_capacity_;
-  std::vector<PetKV *> shm_kv_;
+  std::vector<PetKV*> shm_kv_;
   int pre_known_value_size_ = 0;
   DISALLOW_COPY_AND_ASSIGN(PetMultiKV);
 };

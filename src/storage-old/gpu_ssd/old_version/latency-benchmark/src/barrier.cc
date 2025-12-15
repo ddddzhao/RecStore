@@ -2,36 +2,22 @@
 #include <thread>
 #include <mutex>
 
+Barrier::Barrier(int numThreads) : reset(numThreads), arrived(0), flag(0) {}
 
+void Barrier::wait() {
+  mtx.lock();
 
-Barrier::Barrier(int numThreads)
-    : reset(numThreads)
-    , arrived(0)
-    , flag(0)
-{
-}
+  int localFlag = !flag;
 
+  if (++arrived == reset) {
+    mtx.unlock();
+    arrived = 0;
+    flag    = localFlag;
+  } else {
+    mtx.unlock();
 
-void Barrier::wait()
-{
-    mtx.lock();
-
-    int localFlag = !flag;
-
-    if (++arrived == reset)
-    {
-        mtx.unlock();
-        arrived = 0;
-        flag = localFlag;
+    while (flag != localFlag) {
+      std::this_thread::yield();
     }
-    else
-    {
-        mtx.unlock();
-
-        while (flag != localFlag)
-        {
-            std::this_thread::yield();
-        }
-    }
+  }
 }
-

@@ -17,48 +17,49 @@ namespace recstore {
 // bRPC 版本的参数服务实现
 class BRPCParameterServiceImpl : public recstoreps_brpc::ParameterService {
 public:
-    explicit BRPCParameterServiceImpl(CachePS* cache_ps);
-    
-    virtual ~BRPCParameterServiceImpl() = default;
+  explicit BRPCParameterServiceImpl(CachePS* cache_ps);
 
-    void GetParameter(google::protobuf::RpcController* controller,
-                     const recstoreps_brpc::GetParameterRequest* request,
-                     recstoreps_brpc::GetParameterResponse* response,
-                     google::protobuf::Closure* done) override;
+  virtual ~BRPCParameterServiceImpl() = default;
 
-    void Command(google::protobuf::RpcController* controller,
-                const recstoreps_brpc::CommandRequest* request,
-                recstoreps_brpc::CommandResponse* response,
-                google::protobuf::Closure* done) override;
+  void GetParameter(google::protobuf::RpcController* controller,
+                    const recstoreps_brpc::GetParameterRequest* request,
+                    recstoreps_brpc::GetParameterResponse* response,
+                    google::protobuf::Closure* done) override;
 
-    void PutParameter(google::protobuf::RpcController* controller,
-                     const recstoreps_brpc::PutParameterRequest* request,
-                     recstoreps_brpc::PutParameterResponse* response,
-                     google::protobuf::Closure* done) override;
+  void Command(google::protobuf::RpcController* controller,
+               const recstoreps_brpc::CommandRequest* request,
+               recstoreps_brpc::CommandResponse* response,
+               google::protobuf::Closure* done) override;
 
-    void UpdateParameter(google::protobuf::RpcController* controller,
-                     const recstoreps_brpc::UpdateParameterRequest* request,
-                     recstoreps_brpc::UpdateParameterResponse* response,
-                     google::protobuf::Closure* done) override;
+  void PutParameter(google::protobuf::RpcController* controller,
+                    const recstoreps_brpc::PutParameterRequest* request,
+                    recstoreps_brpc::PutParameterResponse* response,
+                    google::protobuf::Closure* done) override;
 
-    void InitEmbeddingTable(google::protobuf::RpcController* controller,
-                     const recstoreps_brpc::InitEmbeddingTableRequest* request,
-                     recstoreps_brpc::InitEmbeddingTableResponse* response,
-                     google::protobuf::Closure* done) override;
+  void UpdateParameter(google::protobuf::RpcController* controller,
+                       const recstoreps_brpc::UpdateParameterRequest* request,
+                       recstoreps_brpc::UpdateParameterResponse* response,
+                       google::protobuf::Closure* done) override;
 
-    void ResetMetrics();
-    void PrintMetrics(const std::string& table_name = "brpc_ps_server_metrics",
-                     const std::string& unique_id = "default_server");
+  void InitEmbeddingTable(
+      google::protobuf::RpcController* controller,
+      const recstoreps_brpc::InitEmbeddingTableRequest* request,
+      recstoreps_brpc::InitEmbeddingTableResponse* response,
+      google::protobuf::Closure* done) override;
+
+  void ResetMetrics();
+  void PrintMetrics(const std::string& table_name = "brpc_ps_server_metrics",
+                    const std::string& unique_id  = "default_server");
 
 private:
-    CachePS* cache_ps_;
-    std::atomic<uint64_t> total_get_requests_{0};
-    std::atomic<uint64_t> total_put_requests_{0};
-    std::atomic<uint64_t> total_get_keys_{0};
-    std::atomic<uint64_t> total_put_keys_{0};
-    std::atomic<uint64_t> total_get_bytes_{0};
-    std::atomic<uint64_t> total_put_bytes_{0};
-    std::chrono::steady_clock::time_point start_time_;
+  CachePS* cache_ps_;
+  std::atomic<uint64_t> total_get_requests_{0};
+  std::atomic<uint64_t> total_put_requests_{0};
+  std::atomic<uint64_t> total_get_keys_{0};
+  std::atomic<uint64_t> total_put_keys_{0};
+  std::atomic<uint64_t> total_get_bytes_{0};
+  std::atomic<uint64_t> total_put_bytes_{0};
+  std::chrono::steady_clock::time_point start_time_;
 };
 
-}  // namespace recstore
+} // namespace recstore

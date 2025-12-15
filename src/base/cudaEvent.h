@@ -8,12 +8,12 @@ namespace xmh {
 class cudaEventWrapper {
   cudaEvent_t event;
 
- public:
+public:
   cudaEventWrapper(cudaStream_t stream = 0) {
     auto err = cudaEventCreateWithFlags(&event, cudaEventDefault);
     if (err != cudaSuccess) {
-      throw std::runtime_error(std::string("Failed to create event: ") +
-                               cudaGetErrorString(err));
+      throw std::runtime_error(
+          std::string("Failed to create event: ") + cudaGetErrorString(err));
     }
 
     err = cudaEventRecord(event, stream);
@@ -28,7 +28,7 @@ class cudaEventWrapper {
 
   double operator-(const cudaEventWrapper& other) const {
     float msecs = 0;
-    auto err = cudaEventElapsedTime(&msecs, other.event, event);
+    auto err    = cudaEventElapsedTime(&msecs, other.event, event);
     if (err != cudaSuccess) {
       throw std::runtime_error(
           std::string("Could not calculate elapsed time: ") +
@@ -39,4 +39,4 @@ class cudaEventWrapper {
   }
 };
 
-}  // namespace xmh
+} // namespace xmh

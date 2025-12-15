@@ -11,22 +11,26 @@
 DEFINE_int32(query_count, 100, "# of query embs in one round");
 DEFINE_int32(key_space_M, 1, "key space in millions");
 
-void cb(void *ctx, const struct spdk_nvme_cpl *cpl) {
-  std::atomic<int> *p = (std::atomic<int> *)ctx;
+void cb(void* ctx, const struct spdk_nvme_cpl* cpl) {
+  std::atomic<int>* p = (std::atomic<int>*)ctx;
   p->fetch_add(1);
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   folly::Init(&argc, &argv);
   xmh::Reporter::StartReportThread();
   auto ssd = ssdps::SpdkWrapper::create(1);
   ssd->Init();
 
   int batch_get_num = FLAGS_query_count;
-  int lba_size = ssd->GetLBASize();
+  int lba_size      = ssd->GetLBASize();
 
-  char *buf = (char *)spdk_zmalloc(lba_size * batch_get_num, 0, NULL,
-                                   SPDK_ENV_SOCKET_ID_ANY, SPDK_MALLOC_DMA);
+  char* buf = (char*)spdk_zmalloc(
+      lba_size * batch_get_num,
+      0,
+      NULL,
+      SPDK_ENV_SOCKET_ID_ANY,
+      SPDK_MALLOC_DMA);
 
   std::vector<int> batch_get_lba_id(batch_get_num);
 
@@ -37,10 +41,11 @@ int main(int argc, char **argv) {
     xmh::Timer timer("get");
     std::atomic<int> counter{0};
     for (int i = 0; i < batch_get_num; i++) {
-      ssd->SubmitReadCommand(buf + lba_size * i, lba_size, batch_get_lba_id[i],
-                             cb, &counter, 0);
+      ssd->SubmitReadCommand(
+          buf + lba_size * i, lba_size, batch_get_lba_id[i], cb, &counter, 0);
     }
-    while (counter != batch_get_num) ssd->PollCompleteQueue(0);
+    while (counter != batch_get_num)
+      ssd->PollCompleteQueue(0);
     timer.end();
   }
 

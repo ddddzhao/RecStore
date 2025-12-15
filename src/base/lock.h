@@ -15,7 +15,7 @@ namespace base {
 constexpr bool kDetectDeadLock = false;
 
 class Atomic {
- public:
+public:
   static bool CAS(int* ptr, int old_val, int new_val) {
     return __sync_bool_compare_and_swap(ptr, old_val, new_val);
   }
@@ -38,22 +38,25 @@ class Atomic {
 class SpinLock {
   std::atomic_flag locked = ATOMIC_FLAG_INIT;
 
- public:
+public:
   void Lock() {
     std::chrono::time_point<std::chrono::steady_clock> start_time;
-    if (kDetectDeadLock) start_time = std::chrono::steady_clock::now();
+    if (kDetectDeadLock)
+      start_time = std::chrono::steady_clock::now();
 
     while (locked.test_and_set(std::memory_order_acquire)) {
       ;
       if (kDetectDeadLock) {
         auto end_time = std::chrono::steady_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::seconds>(
-                            end_time - start_time)
-                            .count();
+        auto duration =
+            std::chrono::duration_cast<std::chrono::seconds>(
+                end_time - start_time)
+                .count();
         // if (int(duration) % 5 == 1) {
         //   cpptrace::generate_trace().print();
         // }
-        if (duration > 2) LOG(FATAL) << "may be deadlocked";
+        if (duration > 2)
+          LOG(FATAL) << "may be deadlocked";
       }
     }
   }
@@ -70,18 +73,20 @@ class NamedSpinLock {
 
   std::string locked_success_info_;
 
- public:
+public:
   void Lock(std::string locked_success_info) {
     std::chrono::time_point<std::chrono::steady_clock> start_time;
-    if (kDetectDeadLock) start_time = std::chrono::steady_clock::now();
+    if (kDetectDeadLock)
+      start_time = std::chrono::steady_clock::now();
 
     while (locked.test_and_set(std::memory_order_acquire)) {
       ;
       if (kDetectDeadLock) {
         auto end_time = std::chrono::steady_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::seconds>(
-                            end_time - start_time)
-                            .count();
+        auto duration =
+            std::chrono::duration_cast<std::chrono::seconds>(
+                end_time - start_time)
+                .count();
         // if (int(duration) % 5 == 1) {
         //   cpptrace::generate_trace().print();
         // }
@@ -102,7 +107,7 @@ class NamedSpinLock {
 };
 
 class PlaceboLock {
- public:
+public:
   void Lock() { ; }
   void Unlock() { ; }
 };
@@ -111,7 +116,7 @@ template <class T>
 class LockGuard {
   T& lock_;
 
- public:
+public:
   LockGuard(T& lock) : lock_(lock) { lock_.Lock(); }
   ~LockGuard() { lock_.Unlock(); }
 };
@@ -120,7 +125,7 @@ template <class T>
 class NamedLockGuard {
   T& lock_;
 
- public:
+public:
   NamedLockGuard(T& lock, const std::string& info) : lock_(lock) {
     lock_.Lock(info);
   }
@@ -128,7 +133,7 @@ class NamedLockGuard {
 };
 
 class Barrier {
- public:
+public:
   explicit Barrier(int count) : count_(count), bar_(0) {}
 
   void Wait() {
@@ -148,7 +153,7 @@ class Barrier {
     }
   }
 
- private:
+private:
   int count_;
   std::atomic_int bar_;
   std::atomic_int passed_ = 0;
@@ -197,14 +202,14 @@ class Barrier {
 // };
 
 class BitLockTable {
- public:
+public:
   BitLockTable(int64_t num_locks) : lockTable(num_locks) {}
 
   void lock(int index) { lockTable[index].Lock(); }
 
   void unlock(int index) { lockTable[index].Unlock(); }
 
- private:
+private:
   std::vector<base::SpinLock> lockTable;
 };
 
@@ -283,4 +288,4 @@ class BitLockTable {
 //   }
 // };
 
-}  // namespace base
+} // namespace base

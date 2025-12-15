@@ -33,21 +33,22 @@ class SubGradTensor {
   torch::Tensor father_;
   int64_t index_;
 
- public:
+public:
   SubGradTensor() {}
   SubGradTensor(torch::Tensor father, int64_t index) {
     father_ = father;
-    index_ = index;
+    index_  = index;
     CHECK_EQ(father_.dim(), 2);
     CHECK(father_.is_cpu());
   }
 
   torch::Tensor to_tensor() const {
-    int dim_ = father_.size(1);
+    int dim_            = father_.size(1);
     float* father_data_ = father_.data_ptr<float>();
-    at::Device device = father_.device();
+    at::Device device   = father_.device();
     return torch::from_blob(
-        father_data_ + index_ * dim_, {dim_},
+        father_data_ + index_ * dim_,
+        {dim_},
         torch::TensorOptions().dtype(torch::kFloat32).device(device));
 
     // at::Tensor::select(father_, 0, index_);
@@ -78,4 +79,4 @@ class SubGradTensor {
 //     }
 //   }
 // };
-}  // namespace recstore
+} // namespace recstore

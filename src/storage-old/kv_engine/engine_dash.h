@@ -13,10 +13,11 @@ static const int valid_file_size = 123;
 
 class KVEngineDash : public BaseKV {
 public:
-  KVEngineDash(const BaseKVConfig &config)
+  KVEngineDash(const BaseKVConfig& config)
       : BaseKV(config),
 #ifdef XMH_SIMPLE_MALLOC
-        shm_malloc_(config.path + "/value", config.capacity * config.value_size,
+        shm_malloc_(config.path + "/value",
+                    config.capacity * config.value_size,
                     config.value_size)
 #else
         shm_malloc_(config.path + "/value",
@@ -29,7 +30,8 @@ public:
     base::file_util::CreateDirectory(config.path);
     dict_pool_name_ = config.path + "/dict";
     dict_pool_size_ =
-        2 * base::PetHash<uint64, base::PetKVData, false>::MemorySize(config.capacity, true);
+        2 * base::PetHash<uint64, base::PetKVData, false>::MemorySize(
+                config.capacity, true);
 
     LOG(ERROR) << "WARNING, we set 2x more memory for Dash";
 
@@ -38,7 +40,7 @@ public:
     if (FileExists(dict_pool_name_.c_str()))
       file_exist = true;
     Allocator::Initialize(dict_pool_name_.c_str(), dict_pool_size_);
-    hash_table_ = reinterpret_cast<Hash<uint64_t> *>(
+    hash_table_ = reinterpret_cast<Hash<uint64_t>*>(
         Allocator::GetRoot(sizeof(extendible::Finger_EH<uint64_t>)));
     // 1.2: Initialize the hash table
     if (!file_exist) {
@@ -63,7 +65,7 @@ public:
     LOG(INFO) << "After init: [shm_malloc] " << shm_malloc_.GetInfo();
   }
 
-  void Get(const uint64_t key, std::string &value, unsigned t) override {
+  void Get(const uint64_t key, std::string& value, unsigned t) override {
     Value_t read_value;
     base::PetKVData shmkv_data;
     auto epoch_guard = Allocator::AquireEpochGuard();
@@ -71,8 +73,8 @@ public:
       // not found
       value = std::string();
     } else {
-      shmkv_data = *(base::PetKVData *)(&read_value);
-      char *data = shm_malloc_.GetMallocData(shmkv_data.shm_malloc_offset());
+      shmkv_data = *(base::PetKVData*)(&read_value);
+      char* data = shm_malloc_.GetMallocData(shmkv_data.shm_malloc_offset());
 #ifdef XMH_VARIABLE_SIZE_KV
       int size = shm_malloc_.GetMallocSize(shmkv_data.shm_malloc_offset());
 #else
@@ -82,20 +84,20 @@ public:
       value = std::string(data, size);
     }
   }
-  void Put(const uint64_t key, const std::string_view &value,
-           unsigned t) override {
+  void
+  Put(const uint64_t key, const std::string_view& value, unsigned t) override {
     auto epoch_guard = Allocator::AquireEpochGuard();
     base::PetKVData shmkv_data;
-    char *sync_data = shm_malloc_.New(value.size());
+    char* sync_data = shm_malloc_.New(value.size());
     shmkv_data.SetShmMallocOffset(shm_malloc_.GetMallocOffset(sync_data));
     memcpy(sync_data, value.data(), value.size());
     // warning(xieminhui) Now we only clflush the !!!!!value_len!!!!!
     // we may need to flush the whole value
-    auto ret = hash_table_->Insert(key, (char *)shmkv_data.data_value, true);
+    auto ret = hash_table_->Insert(key, (char*)shmkv_data.data_value, true);
     // CHECK(ret != -1);
   }
   void BatchGet(base::ConstArray<uint64> keys,
-                std::vector<base::ConstArray<float>> *values,
+                std::vector<base::ConstArray<float>>* values,
                 unsigned t) override {
     values->clear();
     for (auto k : keys) {
@@ -105,15 +107,15 @@ public:
       if (hash_table_->Get(k, &read_value, true) == false) {
         values->emplace_back(nullptr, 0);
       } else {
-        shmkv_data = *(base::PetKVData *)(&read_value);
-        char *data = shm_malloc_.GetMallocData(shmkv_data.shm_malloc_offset());
+        shmkv_data = *(base::PetKVData*)(&read_value);
+        char* data = shm_malloc_.GetMallocData(shmkv_data.shm_malloc_offset());
 #ifdef XMH_VARIABLE_SIZE_KV
         int size = shm_malloc_.GetMallocSize(shmkv_data.shm_malloc_offset());
 #else
         // TODO: warning, for remove a PM read
         int size = value_size_;
 #endif
-        values->emplace_back((float *)data, size / sizeof(float));
+        values->emplace_back((float*)data, size / sizeof(float));
       }
     }
   }
@@ -125,7 +127,7 @@ public:
   void Util() override { hash_table_->getNumber(); }
 
 private:
-  Hash<uint64_t> *hash_table_;
+  Hash<uint64_t>* hash_table_;
   std::string dict_pool_name_;
   size_t dict_pool_size_;
   int value_size_;
@@ -137,4 +139,4 @@ private:
   base::ShmFile valid_shm_file_; // 标记 shm 数据是否合法
 };
 
-FACTORY_REGISTER(BaseKV, KVEngineDash, KVEngineDash, const BaseKVConfig &);
+FACTORY_REGISTER(BaseKV, KVEngineDash, KVEngineDash, const BaseKVConfig&);

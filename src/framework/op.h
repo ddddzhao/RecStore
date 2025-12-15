@@ -135,7 +135,8 @@ private:
   std::unordered_map<uint64_t, std::vector<float>> store_;
   std::mutex mtx_;
   float learning_rate_;
-  std::unordered_map<uint64_t, std::vector<std::vector<float>>> prefetch_results_;
+  std::unordered_map<uint64_t, std::vector<std::vector<float>>>
+      prefetch_results_;
   uint64_t next_prefetch_id_ = 1;
 #endif
 };

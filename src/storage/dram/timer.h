@@ -30,4 +30,4 @@ private:
   size_t elapsed;
 };
 
-}
+} // namespace recstore

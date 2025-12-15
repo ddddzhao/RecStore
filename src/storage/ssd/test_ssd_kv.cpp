@@ -21,7 +21,8 @@ TEST(BasicSSDKv, test) {
 
   for (int i = 0; i < test_key_capability; i++) {
     keys.push_back(i);
-    for (int j = 0; j < emb_dim; j++) values.push_back(i);
+    for (int j = 0; j < emb_dim; j++)
+      values.push_back(i);
   }
 
   ssd.BulkLoad(test_key_capability, values.data());
@@ -40,7 +41,7 @@ TEST(BasicSSDKv, test) {
       test_get_keys[i] = folly::Random::rand32(test_key_capability);
     }
     xmh::Timer timer("get");
-    ssd.BatchGet(test_get_keys_array, (void *)test_get_values.data(), 0);
+    ssd.BatchGet(test_get_keys_array, (void*)test_get_values.data(), 0);
     timer.end();
     for (int i = 0; i < batch_get_num; i++) {
       for (int j = 0; j < emb_dim; j++) {
@@ -50,7 +51,7 @@ TEST(BasicSSDKv, test) {
   }
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   xmh::Reporter::StartReportThread(1000);
   return RUN_ALL_TESTS();

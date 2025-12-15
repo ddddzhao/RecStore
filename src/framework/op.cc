@@ -121,7 +121,7 @@ std::shared_ptr<CommonOp> GetKVClientOp() {
 
 #ifndef USE_FAKE_KVCLIENT
 
-#include "grpc_ps/grpc_ps_client.h"
+#  include "grpc_ps/grpc_ps_client.h"
 namespace recstore {
 
 BasePSClient* create_ps_client_from_config(const json& config) {
@@ -141,7 +141,8 @@ BasePSClient* create_ps_client_from_config(const json& config) {
   }
 
   std::string type_key = (ps_type == "BRPC") ? "brpc" : "grpc";
-  BasePSClient* client = base::Factory<BasePSClient, json>::NewInstance(type_key, client_config);
+  BasePSClient* client =
+      base::Factory<BasePSClient, json>::NewInstance(type_key, client_config);
   if (client == nullptr) {
     return new GRPCParameterClient(client_config);
   }
@@ -248,11 +249,10 @@ void KVClientOp::EmbRead(const RecTensor& keys, RecTensor& values) {
   base::ConstArray<uint64_t> keys_array(keys_data, L);
   float* values_data = values.data_as<float>();
 
-  const int64_t D = values.shape(1);
+  const int64_t D    = values.shape(1);
   const size_t total = static_cast<size_t>(L) * static_cast<size_t>(D);
   std::fill_n(values_data, total, 0.0f);
 
-  
   // std::cout << "[EmbRead] Reading " << L << " embeddings of dimension " <<
   // base::EMBEDDING_DIMENSION_D << std::endl;
 
@@ -385,7 +385,8 @@ namespace testing {
 // void ClearEmbeddingTableForTesting() {
 //     bool success = GetGRPCClientInstance().ClearPS();
 //     if (!success) {
-//         throw std::runtime_error("Failed to clear remote Parameter Server state during testing.");
+//         throw std::runtime_error("Failed to clear remote Parameter Server
+//         state during testing.");
 //     }
 // }
 
@@ -395,6 +396,6 @@ namespace testing {
 
 #else
 
-#include "op_mock.cc"
+#  include "op_mock.cc"
 
 #endif // USE_FAKE_KVCLIENT

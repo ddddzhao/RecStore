@@ -9,27 +9,27 @@
 #ifndef __has_include
 static_assert(false, "__has_include not supported");
 #else
-#if __cplusplus >= 201703L && __has_include(<filesystem>)
-#include <filesystem>
+#  if __cplusplus >= 201703L && __has_include(<filesystem>)
+#    include <filesystem>
 namespace fs = std::filesystem;
-#elif __has_include(<experimental/filesystem>)
-#include <experimental/filesystem>
+#  elif __has_include(<experimental/filesystem>)
+#    include <experimental/filesystem>
 namespace fs = std::experimental::filesystem;
-#elif __has_include(<boost/filesystem.hpp>)
-#include <boost/filesystem.hpp>
+#  elif __has_include(<boost/filesystem.hpp>)
+#    include <boost/filesystem.hpp>
 namespace fs = boost::filesystem;
-#endif
+#  endif
 #endif
 
 #include <iostream>
 #include <thread>
 
 #if defined(__GNUC__)
-#define LIKELY(x) (__builtin_expect((x), 1))
-#define UNLIKELY(x) (__builtin_expect((x), 0))
+#  define LIKELY(x) (__builtin_expect((x), 1))
+#  define UNLIKELY(x) (__builtin_expect((x), 0))
 #else
-#define LIKELY(x) (x)
-#define UNLIKELY(x) (x)
+#  define LIKELY(x) (x)
+#  define UNLIKELY(x) (x)
 #endif
 
 #include <limits.h>
@@ -40,18 +40,19 @@ namespace fs = boost::filesystem;
 #include <iostream>
 #include <mutex>
 
-using uint8 = uint8_t;
-using int8 = int8_t;
-using int64 = int64_t;
-using int32 = int32_t;
+using uint8  = uint8_t;
+using int8   = int8_t;
+using int64  = int64_t;
+using int32  = int32_t;
 using uint64 = uint64_t;
 using uint32 = uint32_t;
 
 #ifndef DISALLOW_COPY_AND_ASSIGN
-#define DISALLOW_COPY_AND_ASSIGN(TypeName) \
- private:                                  \
-  TypeName(const TypeName &);              \
-  void operator=(const TypeName &)
+#  define DISALLOW_COPY_AND_ASSIGN(TypeName)                                   \
+                                                                               \
+  private:                                                                     \
+    TypeName(const TypeName&);                                                 \
+    void operator=(const TypeName&)
 #endif
 
 namespace base {
@@ -68,34 +69,35 @@ inline int64 GetTimestamp() {
 inline pid_t GetThreadId() { return syscall(SYS_gettid); }
 
 class Lock {
- public:
+public:
   void lock() { m.lock(); }
   void unLock() { m.unlock(); }
 
- private:
+private:
   std::mutex m;
 };
 
 class AutoLock {
- public:
-  AutoLock(Lock &lock) {
+public:
+  AutoLock(Lock& lock) {
     lock_ = &lock;
     lock_->lock();
   }
 
   ~AutoLock() { lock_->unLock(); }
 
- private:
-  Lock *lock_;
+private:
+  Lock* lock_;
 };
 
 inline std::string IntToString(int x) { return std::to_string(x); }
 inline std::string Int64ToString(int64 x) { return std::to_string(x); }
 
 class file_util {
- public:
-  static bool Delete(const std::string &path, bool recursive) {
-    if (!PathExists(path)) return false;
+public:
+  static bool Delete(const std::string& path, bool recursive) {
+    if (!PathExists(path))
+      return false;
     if (recursive) {
       fs::remove_all(path);
     } else {
@@ -104,9 +106,9 @@ class file_util {
     return true;
   }
 
-  static bool PathExists(const std::string &path) { return fs::exists(path); }
+  static bool PathExists(const std::string& path) { return fs::exists(path); }
 
-  static bool CreateDirectory(const std::string &path) {
+  static bool CreateDirectory(const std::string& path) {
     return fs::create_directories(path);
     ;
   }
@@ -115,7 +117,7 @@ class file_util {
 class PseudoRandom {
   folly::Random::DefaultGenerator rng;
 
- public:
+public:
   explicit PseudoRandom(uint64 seed) { rng.seed(seed); }
 
   PseudoRandom() { rng.seed(base::GetTimestamp()); }
@@ -143,13 +145,15 @@ class PseudoRandom {
 class Rdtsc {
   static constexpr int CPU_FREQ_MHZ_ = 3300;
 
- public:
+public:
   static inline void CPUPause(void) { __asm__ volatile("pause" ::: "memory"); }
 
   static inline void SleepNS(uint64_t ns) {
-    if (ns == 0) return;
+    if (ns == 0)
+      return;
     unsigned long etcs = ReadTSC() + (unsigned long)(ns * CPU_FREQ_MHZ_ / 1000);
-    while (ReadTSC() < etcs) CPUPause();
+    while (ReadTSC() < etcs)
+      CPUPause();
   }
 
   static inline unsigned long ReadTSC(void) {
@@ -162,16 +166,16 @@ class Rdtsc {
 };
 
 class ScopedTempDir {
- public:
+public:
   class FilePath {
     std::string path_;
 
-   public:
+  public:
     FilePath() {}
 
     bool exists() const { return fs::exists(path_); }
 
-    void setPath(const std::string &path) { path_ = path; }
+    void setPath(const std::string& path) { path_ = path; }
     std::string value() const { return path_; }
   };
 
@@ -181,14 +185,14 @@ class ScopedTempDir {
   FilePath path() const { return path_; }
 
   bool CreateUniqueTempDir() {
-    auto temp = folly::Random::rand64();
+    auto temp        = folly::Random::rand64();
     std::string path = folly::sformat("/tmp/temp-{}", temp);
     file_util::CreateDirectory(path);
     path_.setPath(path);
     return true;
   }
 
-  bool CreateUniqueTempDirUnderPath(const std::string &dir) {
+  bool CreateUniqueTempDirUnderPath(const std::string& dir) {
     auto temp = folly::Random::rand64();
     auto path = folly::sformat("{}/temp-{}", dir, temp);
     while (file_util::PathExists(path)) {
@@ -201,12 +205,12 @@ class ScopedTempDir {
     return r;
   }
 
- private:
+private:
   FilePath path_;
 };
 
 class HostName {
- public:
+public:
   static std::string GetHostName() {
     char hostname[30];
     gethostname(hostname, 30);
@@ -215,17 +219,16 @@ class HostName {
 };
 
 class WorkParititon {
- public:
-  static std::pair<int, int> MultiThreadWorkPartititon(int thread_id,
-                                                       int thread_num,
-                                                       int all_work_num) {
-    int per_thread = (all_work_num + thread_num - 1) / thread_num;
+public:
+  static std::pair<int, int>
+  MultiThreadWorkPartititon(int thread_id, int thread_num, int all_work_num) {
+    int per_thread   = (all_work_num + thread_num - 1) / thread_num;
     int thread_start = thread_id * per_thread;
-    int thread_end = (thread_id + 1) * per_thread;
-    thread_end = std::min(thread_end, all_work_num);
+    int thread_end   = (thread_id + 1) * per_thread;
+    thread_end       = std::min(thread_end, all_work_num);
     return std::make_pair(thread_start, thread_end);
   }
 };
 
-}  // namespace base
+} // namespace base
 const int32 kInt32Max = static_cast<int32>(0x7FFFFFFF);

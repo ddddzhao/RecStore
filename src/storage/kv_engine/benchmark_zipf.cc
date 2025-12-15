@@ -21,14 +21,14 @@ DEFINE_int32(running_seconds, 100, "");
 
 const uint64_t MB = 1024 * 1024LL;
 
-uint64_t kKeySpace = 100 * MB;
+uint64_t kKeySpace  = 100 * MB;
 double warmup_ratio = 0.1;
 
 const int kMaxThread = 32;
 std::thread th[kMaxThread];
 uint64_t tp[kMaxThread][8];
 
-BaseKV *kv;
+BaseKV* kv;
 
 inline void bindCore(uint16_t core) {
   cpu_set_t cpuset;
@@ -53,11 +53,14 @@ void thread_run(int id) {
   unsigned int seed = rdtsc();
   struct zipf_gen_state state;
   LOG(INFO) << "before mehcached_zipf_init";
-  mehcached_zipf_init(&state, kKeySpace, FLAGS_zipf_theta,
-                      (rdtsc() & 0x0000ffffffffffffull) ^ id);
+  mehcached_zipf_init(
+      &state,
+      kKeySpace,
+      FLAGS_zipf_theta,
+      (rdtsc() & 0x0000ffffffffffffull) ^ id);
   LOG(INFO) << "after mehcached_zipf_init";
 
-  char *pool = (char *)malloc(32 * 1024);
+  char* pool = (char*)malloc(32 * 1024);
   memset(pool, 'e', 32 * 1024);
 
   LOG(INFO) << "before warmup";
@@ -70,7 +73,7 @@ void thread_run(int id) {
   std::string value;
   while (!stop_flag) {
     uint64_t key = mehcached_zipf_next(&state);
-    if (rand_r(&seed) % 100 < FLAGS_read_ratio) {  // GET
+    if (rand_r(&seed) % 100 < FLAGS_read_ratio) { // GET
       kv->Get(key, value, id);
     } else {
       kv->Put(key, std::string_view(pool, FLAGS_value_size), id);
@@ -79,13 +82,13 @@ void thread_run(int id) {
   }
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
   folly::init(&argc, &argv);
   BaseKVConfig config;
-  config.json_config_["capacity"] = kKeySpace;
+  config.json_config_["capacity"]   = kKeySpace;
   config.json_config_["value_size"] = FLAGS_value_size;
-  kv = base::Factory<BaseKV, const BaseKVConfig &>::NewInstance(FLAGS_db,
-                                                                config);
+  kv =
+      base::Factory<BaseKV, const BaseKVConfig&>::NewInstance(FLAGS_db, config);
   for (int i = 0; i < FLAGS_thread_count; i++) {
     th[i] = std::thread(thread_run, i);
   }
@@ -116,7 +119,7 @@ int main(int argc, char *argv[]) {
       all_tp += tp[i][0];
     }
     uint64_t cap = all_tp - pre_tp;
-    pre_tp = all_tp;
+    pre_tp       = all_tp;
 
     printf("throughput %.4f\n", cap * 1.0 / microseconds);
     running_seconds++;

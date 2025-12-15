@@ -10,7 +10,7 @@
 namespace base {
 template <typename T, typename Compare = std::less<T>>
 class CustomPriorityQueue {
- public:
+public:
   CustomPriorityQueue(int reserve_size = 0) {
     if (reserve_size > 0) {
       data_.reserve(reserve_size);
@@ -49,7 +49,7 @@ class CustomPriorityQueue {
 
   T pop_x(const T& value) {
     base::LockGuard _(lock_);
-    T ret = value;
+    T ret                = value;
     int64_t old_position = index_map_[value];
     index_map_.erase(value);
 
@@ -66,7 +66,7 @@ class CustomPriorityQueue {
     } else {
       std::swap(data_[old_position], data_.back());
       data_.pop_back();
-      T newValue = data_[old_position];
+      T newValue           = data_[old_position];
       index_map_[newValue] = old_position;
       adjustPriority(newValue);
     }
@@ -106,8 +106,7 @@ class CustomPriorityQueue {
     std::stringstream ss;
     ss << "CustomPriorityQueue:\n";
     if (data_.empty()) {
-      ss << "\t\t"
-         << "empty\n";
+      ss << "\t\t" << "empty\n";
       return ss.str();
     }
 
@@ -141,7 +140,7 @@ class CustomPriorityQueue {
     }
     int64_t heap_size = data_.size();
     for (int64_t index = 0; index < heap_size; index++) {
-      size_t leftChild = 2 * index + 1;
+      size_t leftChild  = 2 * index + 1;
       size_t rightChild = 2 * index + 2;
       if (leftChild < heap_size) {
         CHECK(!compare(data_[index], data_[leftChild])) << hint;
@@ -152,7 +151,7 @@ class CustomPriorityQueue {
     }
   }
 
- private:
+private:
   std::vector<T> data_;
   std::unordered_map<T, size_t> index_map_;
   Compare compare;
@@ -171,7 +170,7 @@ class CustomPriorityQueue {
   void adjustPriority(const T& oldValue) {
     auto it = index_map_.find(oldValue);
     if (it != index_map_.end()) {
-      size_t index = it->second;
+      size_t index   = it->second;
       auto& newValue = oldValue;
       if (index > 0 && compare(data_[(index - 1) / 2], newValue)) {
         heapifyUp(index);
@@ -179,8 +178,7 @@ class CustomPriorityQueue {
         heapifyDown(index);
       }
     } else {
-      LOG(FATAL) << "adjustPriority error:"
-                 << " not found";
+      LOG(FATAL) << "adjustPriority error:" << " not found";
     }
 
 #ifdef XMH_DEBUG
@@ -193,7 +191,7 @@ class CustomPriorityQueue {
   void heapifyUp(size_t index) {
     while (index > 0 && compare(data_[(index - 1) / 2], data_[index])) {
       std::swap(data_[index], data_[(index - 1) / 2]);
-      index_map_[data_[index]] = index;
+      index_map_[data_[index]]           = index;
       index_map_[data_[(index - 1) / 2]] = (index - 1) / 2;
 
       index = (index - 1) / 2;
@@ -203,8 +201,8 @@ class CustomPriorityQueue {
   void heapifyDown(size_t index) {
     size_t size = data_.size();
     while (2 * index + 1 < size) {
-      size_t leftChild = 2 * index + 1;
-      size_t rightChild = 2 * index + 2;
+      size_t leftChild     = 2 * index + 1;
+      size_t rightChild    = 2 * index + 2;
       size_t smallestChild = leftChild;
 
       if (rightChild < size && compare(data_[leftChild], data_[rightChild])) {
@@ -213,13 +211,13 @@ class CustomPriorityQueue {
 
       if (compare(data_[index], data_[smallestChild])) {
         std::swap(data_[index], data_[smallestChild]);
-        index_map_[data_[index]] = index;
+        index_map_[data_[index]]         = index;
         index_map_[data_[smallestChild]] = smallestChild;
-        index = smallestChild;
+        index                            = smallestChild;
       } else {
         break;
       }
     }
   }
 };
-}  // namespace base
+} // namespace base

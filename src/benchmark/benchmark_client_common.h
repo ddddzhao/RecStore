@@ -14,15 +14,15 @@ DEFINE_bool(thread_cut_off, false, "thread cut off");
 DEFINE_int32(benchmark_seconds, 120, "benchmark seconds");
 
 class BenchmarkClientCommon {
- public:
+public:
   struct BenchmarkClientCommonArgs {
-    int thread_count_ = 0;
-    int async_req_num_ = 0;
+    int thread_count_     = 0;
+    int async_req_num_    = 0;
     int batch_read_count_ = 0;
-    int64_t key_space_M_ = 0;
-    double zipf_theta_ = -1;
-    int value_size_ = 0;
-    int read_ratio_ = 100;
+    int64_t key_space_M_  = 0;
+    double zipf_theta_    = -1;
+    int value_size_       = 0;
+    int read_ratio_       = 100;
     std::string dataset_;
 
     void CheckArgs() {
@@ -40,7 +40,7 @@ class BenchmarkClientCommon {
   BenchmarkClientCommon(BenchmarkClientCommonArgs args)
       : args_(args), stop_flags_(args.thread_count_) {
     args_.CheckArgs();
-    for (auto &each : stop_flags_) {
+    for (auto& each : stop_flags_) {
       each.store(false);
     }
     pause_flags_ = false;
@@ -54,29 +54,28 @@ class BenchmarkClientCommon {
     std::vector<std::unique_ptr<BaseParameterClient>> clients;
     CHECK_LE(args_.thread_count_, kMaxThread);
     for (int _ = 0; _ < args_.thread_count_; _++) {
-      BaseParameterClient *client;
+      BaseParameterClient* client;
       if (XPostoffice::GetInstance()->NumServers() == 1) {
         // client = base::Factory<BaseParameterClient, const std::string &,
         // int,
         //                             int>::NewInstance("LJRPCParameterClient",
         //                                               "127.0.0.1", 1234, 0);
 
-        client = base::Factory<BaseParameterClient, const std::string &, int,
-                               int>::NewInstance("PetPSClient",
-                                                 "127.0.0.1", 1234, 0);
+        client =
+            base::Factory<BaseParameterClient, const std::string&, int, int>::
+                NewInstance("PetPSClient", "127.0.0.1", 1234, 0);
 
         // client = base::Factory<BaseParameterClient, const std::string &,
         // int,
         //                             int>::NewInstance("PsLiteParameterClient",
         //                                               "127.0.0.1", 1234, 0);
       } else {
-        std::vector<BaseParameterClient *> shard_clients;
+        std::vector<BaseParameterClient*> shard_clients;
         for (int shard = 0; shard < XPostoffice::GetInstance()->NumServers();
              shard++) {
           auto shard_client =
-              base::Factory<BaseParameterClient, const std::string &, int,
-                            int>::NewInstance("PetPSClient",
-                                              "127.0.0.1", 1234, shard);
+              base::Factory<BaseParameterClient, const std::string&, int, int>::
+                  NewInstance("PetPSClient", "127.0.0.1", 1234, shard);
           shard_clients.push_back(shard_client);
         }
         client = new AllShardsParameterClientWrapper(
@@ -84,23 +83,25 @@ class BenchmarkClientCommon {
       }
       clients.emplace_back(client);
     }
-    PetDatasetReader *dataset_reader = nullptr;
+    PetDatasetReader* dataset_reader = nullptr;
     if (args_.dataset_ == "dataset") {
       dataset_reader = new PetDatasetReader(
-          args_.thread_count_, args_.key_space_M_,
-          "/data/project/kuai/dump.2022.08.17/sign*", true);
+          args_.thread_count_,
+          args_.key_space_M_,
+          "/data/project/kuai/dump.2022.08.17/sign*",
+          true);
     }
 
     std::vector<std::unique_ptr<SampleReader>> sample_readers;
     for (int _ = 0; _ < args_.thread_count_; _++) {
-      SampleReader *each;
+      SampleReader* each;
       if (args_.dataset_ == "zipfian")
-        each = new ZipfianSampleReader(_, args_.key_space_M_, args_.zipf_theta_,
-                                       args_.batch_read_count_);
+        each = new ZipfianSampleReader(
+            _, args_.key_space_M_, args_.zipf_theta_, args_.batch_read_count_);
       else if (args_.dataset_ == "dataset") {
         LOG(FATAL) << "We can not make the production dataset public.";
-        each = new PetDatasetSampleReader(dataset_reader, _, args_.key_space_M_,
-                                          args_.batch_read_count_);
+        each = new PetDatasetSampleReader(
+            dataset_reader, _, args_.key_space_M_, args_.batch_read_count_);
       } else {
         LOG(FATAL) << "dataset_ = " << args_.dataset_;
       }
@@ -109,9 +110,12 @@ class BenchmarkClientCommon {
 
     std::vector<std::thread> threads;
     for (int i = 0; i < args_.thread_count_; i++) {
-      threads.push_back(std::thread(&BenchmarkClientCommon::clientThreadLoop,
-                                    this, i, sample_readers[i].get(),
-                                    clients[i].get()));
+      threads.push_back(std::thread(
+          &BenchmarkClientCommon::clientThreadLoop,
+          this,
+          i,
+          sample_readers[i].get(),
+          clients[i].get()));
     }
 
     timespec s, e;
@@ -131,8 +135,8 @@ class BenchmarkClientCommon {
             << "main client thread, stalled for waiting thread " << i;
     }
     // wait all clients ready
-    clients[0]->Barrier("clients start",
-                        XPostoffice::GetInstance()->NumClients());
+    clients[0]->Barrier(
+        "clients start", XPostoffice::GetInstance()->NumClients());
     start_flag_ = true;
 
     while (true) {
@@ -147,9 +151,10 @@ class BenchmarkClientCommon {
         all_tp += tp[i][0];
       }
       uint64_t cap = all_tp - pre_tp;
-      pre_tp = all_tp;
+      pre_tp       = all_tp;
 
-      printf("throughput %.4f Mreq/s %.4f Mkv/s\n", cap * 1.0 / microseconds,
+      printf("throughput %.4f Mreq/s %.4f Mkv/s\n",
+             cap * 1.0 / microseconds,
              cap * (double)args_.batch_read_count_ / microseconds);
       running_seconds++;
 
@@ -165,8 +170,10 @@ class BenchmarkClientCommon {
         }
         // pause all running threads
         pause_flags_ = true;
-        LOG(INFO) << folly::sformat("Stop {} threads; remaining {} threads",
-                                    stride, stop_thread_id_orders.size());
+        LOG(INFO) << folly::sformat(
+            "Stop {} threads; remaining {} threads",
+            stride,
+            stop_thread_id_orders.size());
         sleep(1);
         // wait for all client processes;
         clients[0]->Barrier(
@@ -185,7 +192,7 @@ class BenchmarkClientCommon {
 
       if (!FLAGS_thread_cut_off && running_seconds >= FLAGS_benchmark_seconds) {
         LOG(INFO) << "already run for a while; stop benchmark";
-        for (auto &each : stop_flags_) {
+        for (auto& each : stop_flags_) {
           each = true;
         }
         goto label_finish;
@@ -193,18 +200,19 @@ class BenchmarkClientCommon {
     }
   label_finish:
     LOG(INFO) << "All client threads stopped";
-    for (auto &t : threads) t.join();
+    for (auto& t : threads)
+      t.join();
   }
 
- private:
-  void clientThreadLoop(int tid, SampleReader *sample,
-                        BaseParameterClient *client) {
+private:
+  void
+  clientThreadLoop(int tid, SampleReader* sample, BaseParameterClient* client) {
     auto_bind_core(1);
-    std::vector<uint64_t> client_keys(args_.batch_read_count_ *
-                                      args_.async_req_num_);
-    std::vector<float *> recv_buffers;
+    std::vector<uint64_t> client_keys(
+        args_.batch_read_count_ * args_.async_req_num_);
+    std::vector<float*> recv_buffers;
     for (int i = 0; i < args_.async_req_num_; i++) {
-      recv_buffers.push_back((float *)client->GetReceiveBuffer(
+      recv_buffers.push_back((float*)client->GetReceiveBuffer(
           args_.batch_read_count_ * args_.value_size_));
     }
 
@@ -230,19 +238,21 @@ class BenchmarkClientCommon {
           // send a request
           auto keys =
               sample->fillArray(&client_keys[req_i * args_.batch_read_count_]);
-          float *values = recv_buffers[req_i];
+          float* values = recv_buffers[req_i];
 
           if (folly::Random::rand32(100) < args_.read_ratio_) {
             // read request
-            isPullRequest[req_i] = true;
+            isPullRequest[req_i]   = true;
             running_rpc_ids[req_i] = client->GetParameter(
                 keys.ToConstArray(), values, true, true, req_i);
-            if (req_i == 0) client_get_timer.start();
+            if (req_i == 0)
+              client_get_timer.start();
           } else {
             isPullRequest[req_i] = false;
             running_rpc_ids[req_i] =
                 client->FakePutParameter(keys.ToConstArray(), values);
-            if (req_i == 0) client_put_timer.start();
+            if (req_i == 0)
+              client_put_timer.start();
           }
         } else {
           if (client->QueryRPCFinished(running_rpc_ids[req_i])) {
@@ -257,8 +267,8 @@ class BenchmarkClientCommon {
             base::ConstArray<uint64_t> keys(
                 &client_keys[req_i * args_.batch_read_count_],
                 args_.batch_read_count_);
-            int emb_dim = args_.value_size_ / sizeof(float);
-            float *values = recv_buffers[req_i];
+            int emb_dim   = args_.value_size_ / sizeof(float);
+            float* values = recv_buffers[req_i];
             CheckEmbDebug(emb_dim, keys, values);
             FB_LOG_EVERY_MS(ERROR, 2000)
                 << "successfully ------------------------------";
@@ -272,16 +282,18 @@ class BenchmarkClientCommon {
     LOG(INFO) << "client thread " << tid << "th exit";
   }
 
-  void CheckEmbDebug(int emb_dim, base::ConstArray<uint64_t> keys,
-                     const float *values) {
+  void CheckEmbDebug(
+      int emb_dim, base::ConstArray<uint64_t> keys, const float* values) {
     for (int i = 0; i < keys.Size(); i++) {
       XDebug::AssertTensorEq(
-          &values[i * emb_dim], emb_dim, keys[i],
+          &values[i * emb_dim],
+          emb_dim,
+          keys[i],
           folly::sformat("client embedding check error, key={}", keys[i]));
     }
   }
 
- private:
+private:
   BenchmarkClientCommonArgs args_;
 
   std::vector<std::atomic<bool>> stop_flags_;

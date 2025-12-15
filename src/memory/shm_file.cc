@@ -3,12 +3,12 @@
 #include <algorithm>
 #include <iostream>
 #ifdef __linux__
-#include <execinfo.h>
+#  include <execinfo.h>
 #endif
 
 namespace base {
 
-bool ShmFile::InitializeFsDax(const std::string &filename, int64 size) {
+bool ShmFile::InitializeFsDax(const std::string& filename, int64 size) {
   ClearFsDax();
   if (!fs::exists(filename)) {
     fs::create_directory(fs::path(filename).parent_path());
@@ -30,7 +30,7 @@ bool ShmFile::InitializeFsDax(const std::string &filename, int64 size) {
     return false;
   }
 
-  data_ = reinterpret_cast<char *>(
+  data_ = reinterpret_cast<char*>(
       mmap(nullptr, size_, PROT_READ | PROT_WRITE, MAP_SHARED, fd_, 0));
   CHECK_NE(data_, MAP_FAILED) << "map failed";
 
@@ -40,12 +40,12 @@ bool ShmFile::InitializeFsDax(const std::string &filename, int64 size) {
   return true;
 }
 
-bool ShmFile::InitializeDevDax(const std::string &filename, int64 size) {
+bool ShmFile::InitializeDevDax(const std::string& filename, int64 size) {
   {
     static std::mutex m;
     std::lock_guard<std::mutex> _(m);
     data_ =
-        (char *)PMMmapRegisterCenter::GetInstance()->Register(filename, size);
+        (char*)PMMmapRegisterCenter::GetInstance()->Register(filename, size);
     filename_ = filename;
   }
 
@@ -60,32 +60,35 @@ bool ShmFile::InitializeDevDax(const std::string &filename, int64 size) {
   return true;
 }
 
-bool ShmFile::Initialize(const std::string &filename, int64 size) {
-  LOG(INFO) << "[ShmFile::Initialize] type_=" << type_ << ", filename=" << filename << ", size=" << size;
+bool ShmFile::Initialize(const std::string& filename, int64 size) {
+  LOG(INFO) << "[ShmFile::Initialize] type_=" << type_
+            << ", filename=" << filename << ", size=" << size;
   if (!fs::exists("/dev/dax0.0") && type_ == "DRAM") {
-    LOG(INFO) << "[ShmFile::Initialize] /dev/dax0.0 not found; override type_ DRAM -> SSD";
+    LOG(INFO) << "[ShmFile::Initialize] /dev/dax0.0 not found; override type_ "
+                 "DRAM -> SSD";
     type_ = "SSD";
   }
-  #ifdef __linux__
-  void *bt[20];
-  int bt_size = ::backtrace(bt, 20);
-  char **bt_syms = ::backtrace_symbols(bt, bt_size);
+#ifdef __linux__
+  void* bt[20];
+  int bt_size    = ::backtrace(bt, 20);
+  char** bt_syms = ::backtrace_symbols(bt, bt_size);
   LOG(INFO) << "[ShmFile::Initialize] Backtrace:";
   for (int i = 0; i < bt_size; ++i) {
     LOG(INFO) << bt_syms[i];
   }
   free(bt_syms);
-  #endif
-  if (type_ == "DRAM" ) {
-    LOG(INFO) << "ShmFile, devdax mode, type_:" << type_ << ", filename:" << filename;
+#endif
+  if (type_ == "DRAM") {
+    LOG(INFO) << "ShmFile, devdax mode, type_:" << type_
+              << ", filename:" << filename;
     return InitializeDevDax(filename, size);
-  } 
-  else if(type_ == "SSD" || filename.find("valid") != std::string::npos ){
-    LOG(INFO) << "ShmFile, fsdax mode, type_:" << type_ << ", filename:" << filename;
+  } else if (type_ == "SSD" || filename.find("valid") != std::string::npos) {
+    LOG(INFO) << "ShmFile, fsdax mode, type_:" << type_
+              << ", filename:" << filename;
     return InitializeFsDax(filename, size);
-  }
-  else {
-    LOG(INFO) << "Unsupport Medium! type_:" << type_ << ", filename:" << filename;
+  } else {
+    LOG(INFO) << "Unsupport Medium! type_:" << type_
+              << ", filename:" << filename;
     return false;
   }
 }
@@ -101,7 +104,7 @@ void ShmFile::ClearFsDax() {
     close(fd_);
     data_ = NULL;
     size_ = 0;
-    fd_ = -1;
+    fd_   = -1;
   }
 }
 void ShmFile::Clear() {

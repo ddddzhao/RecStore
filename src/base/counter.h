@@ -7,7 +7,7 @@
 namespace base {
 
 class Counter {
- public:
+public:
   struct IntervalCount {
     int64 timestamp;
     int64 start_count;
@@ -20,7 +20,7 @@ class Counter {
           timestamp += interval;
         }
         start_count = end_count;
-        end_count = current_count;
+        end_count   = current_count;
       }
     }
     int64 GetCount() const { return end_count - start_count; }
@@ -33,21 +33,21 @@ class Counter {
     IntervalCount() : timestamp(0), start_count(0), end_count(0) {}
   };
   Counter() : count_(0) {}
-  explicit Counter(const std::string &name) : name_(name), count_(0) {}
-  explicit Counter(const char *name) : name_(name), count_(0) {}
+  explicit Counter(const std::string& name) : name_(name), count_(0) {}
+  explicit Counter(const char* name) : name_(name), count_(0) {}
   void Inc(int64 count);
-  void SetName(const std::string &name) { name_ = name; }
+  void SetName(const std::string& name) { name_ = name; }
   void ThreadSafeInc(int64 count) {
     base::AutoLock lock(lock_);
     Inc(count);
   }
   int64 GetCount() const { return count_; }
-  const std::string &GetName() const { return name_; }
+  const std::string& GetName() const { return name_; }
   std::string Display() const;
   int64 GetQPS() const { return second_count_.GetCount(1000000L); }
   int64 GetMinuteCount() const { return minute_count_.GetCount(1000000L * 60); }
 
- private:
+private:
   std::string name_;
   int64 count_;
   IntervalCount second_count_;
@@ -60,4 +60,4 @@ class Counter {
   DISALLOW_COPY_AND_ASSIGN(Counter);
 };
 
-}  // namespace base
+} // namespace base

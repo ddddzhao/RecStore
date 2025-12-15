@@ -3,7 +3,7 @@
 namespace recstore {
 
 class MathUtil {
- public:
+public:
   static inline int round_up_to(int num, int factor) {
     return num + factor - 1 - (num + factor - 1) % factor;
   }
@@ -13,4 +13,4 @@ class MathUtil {
   }
 };
 
-}  // namespace recstore
+} // namespace recstore

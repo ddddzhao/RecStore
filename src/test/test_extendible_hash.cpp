@@ -15,12 +15,12 @@ protected:
 
   void TearDown() override { delete hash_table_; }
 
-  ExtendibleHash *hash_table_;
+  ExtendibleHash* hash_table_;
 };
 
 // 基本插入和查找测试
 TEST_F(ExtendibleHashTest, BasicInsertAndGet) {
-  Key_t key1 = 123;
+  Key_t key1     = 123;
   Value_t value1 = 456;
 
   hash_table_->Insert(key1, value1);
@@ -31,7 +31,7 @@ TEST_F(ExtendibleHashTest, BasicInsertAndGet) {
 
 // 测试不存在的键
 TEST_F(ExtendibleHashTest, GetNonExistentKey) {
-  Key_t key = 999;
+  Key_t key         = 999;
   Value_t retrieved = hash_table_->Get(key);
 
   EXPECT_EQ(retrieved, NONE);
@@ -39,7 +39,7 @@ TEST_F(ExtendibleHashTest, GetNonExistentKey) {
 
 // 测试键值覆盖
 TEST_F(ExtendibleHashTest, KeyOverwrite) {
-  Key_t key = 100;
+  Key_t key      = 100;
   Value_t value1 = 200;
   Value_t value2 = 300;
 
@@ -61,12 +61,12 @@ TEST_F(ExtendibleHashTest, MultipleInsertAndGet) {
   }
 
   // 插入数据
-  for (const auto &pair : test_data) {
+  for (const auto& pair : test_data) {
     hash_table_->Insert(pair.first, pair.second);
   }
 
   // 验证数据
-  for (const auto &pair : test_data) {
+  for (const auto& pair : test_data) {
     Value_t retrieved = hash_table_->Get(pair.first);
     EXPECT_EQ(retrieved, pair.second) << "Failed for key " << pair.first;
   }
@@ -74,7 +74,7 @@ TEST_F(ExtendibleHashTest, MultipleInsertAndGet) {
 
 // 测试InsertOnly方法
 TEST_F(ExtendibleHashTest, InsertOnly) {
-  Key_t key = 50;
+  Key_t key     = 50;
   Value_t value = 100;
 
   bool result = hash_table_->InsertOnly(key, value);
@@ -91,7 +91,7 @@ TEST_F(ExtendibleHashTest, CapacityAndUtilization) {
     hash_table_->Insert(i, i * 2);
   }
 
-  size_t capacity = hash_table_->Capacity();
+  size_t capacity    = hash_table_->Capacity();
   double utilization = hash_table_->Utilization();
 
   EXPECT_GT(capacity, 0);
@@ -126,7 +126,7 @@ TEST_F(ExtendibleHashTest, RandomData) {
   std::vector<std::pair<Key_t, Value_t>> inserted_data;
 
   for (int i = 0; i < num_operations; i++) {
-    Key_t key = key_dist(gen);
+    Key_t key     = key_dist(gen);
     Value_t value = value_dist(gen);
 
     hash_table_->Insert(key, value);
@@ -135,11 +135,11 @@ TEST_F(ExtendibleHashTest, RandomData) {
 
   // 验证最后插入的值（因为可能有重复键）
   std::unordered_map<Key_t, Value_t> expected;
-  for (const auto &pair : inserted_data) {
+  for (const auto& pair : inserted_data) {
     expected[pair.first] = pair.second;
   }
 
-  for (const auto &pair : expected) {
+  for (const auto& pair : expected) {
     Value_t retrieved = hash_table_->Get(pair.first);
     EXPECT_EQ(retrieved, pair.second);
   }
@@ -152,7 +152,7 @@ TEST_F(ExtendibleHashTest, SpecialKeys) {
   EXPECT_EQ(hash_table_->Get(0), 42);
 
   // 测试最大值
-  Key_t max_key = UINT64_MAX - 10; // 避免使用INVALID和SENTINEL
+  Key_t max_key     = UINT64_MAX - 10; // 避免使用INVALID和SENTINEL
   Value_t max_value = UINT64_MAX - 10;
   hash_table_->Insert(max_key, max_value);
   EXPECT_EQ(hash_table_->Get(max_key), max_value);
@@ -160,7 +160,7 @@ TEST_F(ExtendibleHashTest, SpecialKeys) {
 
 // 并发测试
 TEST_F(ExtendibleHashTest, ConcurrentInsertAndGet) {
-  const int num_threads = 4;
+  const int num_threads           = 4;
   const int operations_per_thread = 100;
   std::vector<std::thread> threads;
 
@@ -169,7 +169,7 @@ TEST_F(ExtendibleHashTest, ConcurrentInsertAndGet) {
     threads.emplace_back([this, t, operations_per_thread]() {
       Key_t start_key = t * operations_per_thread;
       for (int i = 0; i < operations_per_thread; i++) {
-        Key_t key = start_key + i;
+        Key_t key     = start_key + i;
         Value_t value = key * 2;
         hash_table_->Insert(key, value);
       }
@@ -177,7 +177,7 @@ TEST_F(ExtendibleHashTest, ConcurrentInsertAndGet) {
   }
 
   // 等待所有线程完成
-  for (auto &thread : threads) {
+  for (auto& thread : threads) {
     thread.join();
   }
 
@@ -185,9 +185,9 @@ TEST_F(ExtendibleHashTest, ConcurrentInsertAndGet) {
   for (int t = 0; t < num_threads; t++) {
     Key_t start_key = t * operations_per_thread;
     for (int i = 0; i < operations_per_thread; i++) {
-      Key_t key = start_key + i;
+      Key_t key              = start_key + i;
       Value_t expected_value = key * 2;
-      Value_t retrieved = hash_table_->Get(key);
+      Value_t retrieved      = hash_table_->Get(key);
       EXPECT_EQ(retrieved, expected_value) << "Thread " << t << ", key " << key;
     }
   }
@@ -196,7 +196,7 @@ TEST_F(ExtendibleHashTest, ConcurrentInsertAndGet) {
 // 性能测试
 TEST_F(ExtendibleHashTest, PerformanceTest) {
   const int num_operations = 10000;
-  auto start_time = std::chrono::high_resolution_clock::now();
+  auto start_time          = std::chrono::high_resolution_clock::now();
 
   // 插入操作
   for (Key_t i = 1; i <= num_operations; i++) {
@@ -242,7 +242,7 @@ TEST_F(ExtendibleHashTest, MemoryUsage) {
   }
 
   size_t final_capacity = hash_table_->Capacity();
-  double utilization = hash_table_->Utilization();
+  double utilization    = hash_table_->Utilization();
 
   // 验证容量增长
   EXPECT_GE(final_capacity, initial_capacity);

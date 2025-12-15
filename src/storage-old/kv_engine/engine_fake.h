@@ -10,11 +10,13 @@ DEFINE_int32(fake_kv_index_sleepns, 0, "sleep ns in the index part of FakeKV");
 
 class KVEngineFakeKV : public BaseKV {
   static constexpr int valid_file_size = 4;
+
 public:
-  KVEngineFakeKV(const BaseKVConfig &config)
+  KVEngineFakeKV(const BaseKVConfig& config)
       : BaseKV(config),
 #ifdef XMH_SIMPLE_MALLOC
-        shm_malloc_(config.path + "/value", config.capacity * config.value_size,
+        shm_malloc_(config.path + "/value",
+                    config.capacity * config.value_size,
                     config.value_size)
 #else
         shm_malloc_(config.path + "/value",
@@ -37,24 +39,24 @@ public:
     LOG(INFO) << "After init: [shm_malloc] " << shm_malloc_.GetInfo();
   }
 
-  void Get(const uint64_t key, std::string &value, unsigned t) override {
+  void Get(const uint64_t key, std::string& value, unsigned t) override {
     LOG(FATAL) << "not implement";
   }
-  void Put(const uint64_t key, const std::string_view &value,
-           unsigned t) override {
+  void
+  Put(const uint64_t key, const std::string_view& value, unsigned t) override {
     LOG(FATAL) << "not implement";
   }
   void BatchGet(base::ConstArray<uint64> keys,
-                std::vector<base::ConstArray<float>> *values,
+                std::vector<base::ConstArray<float>>* values,
                 unsigned t) override {
     xmh::Timer batch_get_timer("Fake KV");
     batch_get_timer.start();
-    char *data_start = shm_malloc_.GetMallocData(0);
+    char* data_start = shm_malloc_.GetMallocData(0);
     for (auto k : keys) {
       base::Rdtsc::SleepNS(FLAGS_fake_kv_index_sleepns);
-      int size = value_size_;
-      char *data = data_start + k * size;
-      values->emplace_back((float *)data, size / sizeof(float));
+      int size   = value_size_;
+      char* data = data_start + k * size;
+      values->emplace_back((float*)data, size / sizeof(float));
     }
     batch_get_timer.end();
   }
@@ -73,4 +75,4 @@ private:
   base::ShmFile valid_shm_file_; // 标记 shm 数据是否合法
 };
 
-FACTORY_REGISTER(BaseKV, KVEngineFakeKV, KVEngineFakeKV, const BaseKVConfig &);
+FACTORY_REGISTER(BaseKV, KVEngineFakeKV, KVEngineFakeKV, const BaseKVConfig&);

@@ -2,22 +2,21 @@
 #include <string>
 #include <stdexcept>
 
-
-#define XMH_CUDA_CHECK(val) \
+#define XMH_CUDA_CHECK(val)                                                    \
   { xmh_nv::cuda_check_((val), __FILE__, __LINE__); }
 
 namespace xmh_nv {
 
 class CudaException : public std::runtime_error {
- public:
-  CudaException(const std::string &what) : runtime_error(what) {}
+public:
+  CudaException(const std::string& what) : runtime_error(what) {}
 };
 
-inline void cuda_check_(cudaError_t val, const char *file, int line) {
+inline void cuda_check_(cudaError_t val, const char* file, int line) {
   if (val != cudaSuccess) {
-    throw CudaException(std::string(file) + ":" + std::to_string(line) +
-                        ": CUDA error " + std::to_string(val) + ": " +
-                        cudaGetErrorString(val));
+    throw CudaException(
+        std::string(file) + ":" + std::to_string(line) + ": CUDA error " +
+        std::to_string(val) + ": " + cudaGetErrorString(val));
   }
 }
 
@@ -27,8 +26,8 @@ struct Event {
   inline Event(cudaStream_t stream = 0) {
     auto err = cudaEventCreateWithFlags(&event, cudaEventDefault);
     if (err != cudaSuccess) {
-      throw std::runtime_error(std::string("Failed to create event: ") +
-                               cudaGetErrorString(err));
+      throw std::runtime_error(
+          std::string("Failed to create event: ") + cudaGetErrorString(err));
     }
 
     err = cudaEventRecord(event, stream);
@@ -41,9 +40,9 @@ struct Event {
 
   inline ~Event() { cudaEventDestroy(event); }
 
-  inline double operator-(const Event &other) const {
+  inline double operator-(const Event& other) const {
     float msecs = 0;
-    auto err = cudaEventElapsedTime(&msecs, other.event, event);
+    auto err    = cudaEventElapsedTime(&msecs, other.event, event);
     if (err != cudaSuccess) {
       throw std::runtime_error(
           std::string("Could not calculate elapsed time: ") +
@@ -54,4 +53,4 @@ struct Event {
   }
 };
 
-}  // namespace xmh_nv
+} // namespace xmh_nv

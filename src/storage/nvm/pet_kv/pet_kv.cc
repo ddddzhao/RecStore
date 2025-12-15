@@ -17,7 +17,9 @@ constexpr bool IGNORE_LOAD_FACTOR = true;
 
 PetKVData::Config PetKVData::kConfig = PetKVData::Config();
 
-PetKV::PetKV(const std::string &shm_dir, int64 memory_size, int capacity,
+PetKV::PetKV(const std::string& shm_dir,
+             int64 memory_size,
+             int capacity,
              int pre_known_value_size)
     : start_ts_(base::GetTimestamp()),
       shm_dir_(shm_dir),
@@ -26,11 +28,12 @@ PetKV::PetKV(const std::string &shm_dir, int64 memory_size, int capacity,
 #if 1
   if (pre_known_value_size == 0)
     shm_malloc_ = new PersistMemoryPool<false>(
-        shm_dir + "/value", memory_size,
+        shm_dir + "/value",
+        memory_size,
         {8 + 32, 8 + 64, 8 + 128, 8 + 512, 8 + 1024});
   else
-    shm_malloc_ = new PersistMemoryPool<true>(shm_dir + "/value", memory_size,
-                                              {pre_known_value_size});
+    shm_malloc_ = new PersistMemoryPool<true>(
+        shm_dir + "/value", memory_size, {pre_known_value_size});
 #else
   shm_malloc_ = new PersistLoopShmMalloc(shm_dir + "/value", memory_size);
 #endif
@@ -46,9 +49,10 @@ PetKV::PetKV(const std::string &shm_dir, int64 memory_size, int capacity,
   uint64_t dict_size = capacity;
   auto dict_memory_size =
       ShmKDoubleDict::MemorySize(dict_size, IGNORE_LOAD_FACTOR);
-  LOG(INFO) << fmt::format("PetKV allocate {:.2f} GB; capacity={} for dict",
-                           (double)dict_memory_size / 1024 / 1024 / 1024,
-                           dict_size);
+  LOG(INFO) << fmt::format(
+      "PetKV allocate {:.2f} GB; capacity={} for dict",
+      (double)dict_memory_size / 1024 / 1024 / 1024,
+      dict_size);
   if (!dict_shm_file_.Initialize(shm_dir + "/dict", dict_memory_size)) {
     base::file_util::Delete(shm_dir + "/dict", false);
     CHECK(dict_shm_file_.Initialize(shm_dir + "/dict", dict_memory_size));
@@ -64,15 +68,15 @@ PetKV::PetKV(const std::string &shm_dir, int64 memory_size, int capacity,
   }
   auto valid_file_init_ts = base::GetTimestamp() / 1000;
 
-  dict_ = reinterpret_cast<ShmKDoubleDict *>(dict_shm_file_.Data());
+  dict_ = reinterpret_cast<ShmKDoubleDict*>(dict_shm_file_.Data());
   if (!dict_->Valid(dict_shm_file_.Size())) {
     dict_->Initialize(dict_size, IGNORE_LOAD_FACTOR);
   } else {
     LOG(INFO) << "Before recovery: [shm_malloc] " << shm_malloc_->GetInfo();
-    dict_->Reload(dict_size, IGNORE_LOAD_FACTOR,
-                  [&](uint64 key, PetKVData value) {
-                    shm_malloc_->AddMallocs4Recovery(value.shm_malloc_offset());
-                  });
+    dict_->Reload(
+        dict_size, IGNORE_LOAD_FACTOR, [&](uint64 key, PetKVData value) {
+          shm_malloc_->AddMallocs4Recovery(value.shm_malloc_offset());
+        });
     LOG(INFO) << "After recovery: [Dict] find " << dict_->Size() << " kvs";
     LOG(INFO) << "After recovery: [shm_malloc] " << shm_malloc_->GetInfo();
   }
@@ -94,15 +98,15 @@ PetKV::~PetKV() {
 
 bool PetKV::Valid() {
   const int kCheckThreadNum = 3;
-  auto begin_ts = base::GetTimestamp() / 1000;
+  auto begin_ts             = base::GetTimestamp() / 1000;
   if (!dict_->Valid(dict_shm_file_.Size())) {
     LOG(ERROR) << "dict load error: " << dict_shm_file_.filename()
                << ", size: " << dict_shm_file_.Size();
     return false;
   }
   auto dict_check_ts = base::GetTimestamp() / 1000;
-  auto check_ts = base::GetTimestamp() / 1000;
-  auto shm_free_ts = base::GetTimestamp() / 1000;
+  auto check_ts      = base::GetTimestamp() / 1000;
+  auto shm_free_ts   = base::GetTimestamp() / 1000;
   LOG(INFO) << "shm kv " << shm_dir_
             << " check valid, dict_check_ms: " << (dict_check_ts - begin_ts)
             << ", check_ms: " << (check_ts - dict_check_ts)
@@ -111,12 +115,13 @@ bool PetKV::Valid() {
   return true;
 }
 
-bool PetKV::Update(uint64 key, const char *log, int log_size) {
+bool PetKV::Update(uint64 key, const char* log, int log_size) {
   base::AutoLock lock(modify_lock_);
   auto [p_cache, exists] = dict_->GetReturnPtr(key);
 
-  char *value = shm_malloc_->New(log_size);
-  if (nullptr == value) return false;
+  char* value = shm_malloc_->New(log_size);
+  if (nullptr == value)
+    return false;
   memcpy(value, log, log_size);
   base::clflushopt_range(value, log_size);
   PetKVData new_cache(shm_malloc_->GetMallocOffset(value));
@@ -148,19 +153,23 @@ std::string PetKV::GetInfo() {
       folly::sformat("cache: {}/{}\n", dict_->Size(), dict_->Capacity()));
   info.append(shm_malloc_->GetInfo());
 
-  LOG(INFO) << folly::sformat("LoadFactor : {}/{}={}", dict_->Size(),
-                              dict_->Capacity(),
-                              dict_->Size() / (float)dict_->Capacity());
+  LOG(INFO) << folly::sformat(
+      "LoadFactor : {}/{}={}",
+      dict_->Size(),
+      dict_->Capacity(),
+      dict_->Size() / (float)dict_->Capacity());
   LOG(INFO) << "MemoryUtil: "
             << dict_->Size() * 16 /
-                   (float)ShmKDoubleDict::MemorySize((float)dict_->Capacity(),
-                                                     IGNORE_LOAD_FACTOR);
+                   (float)ShmKDoubleDict::MemorySize(
+                       (float)dict_->Capacity(), IGNORE_LOAD_FACTOR);
 
   return info;
 }
 
-PetMultiKV::PetMultiKV(const std::vector<std::string> &shm_dir, int shard_num,
-                       int64 shard_memory, int shard_cache_capacity,
+PetMultiKV::PetMultiKV(const std::vector<std::string>& shm_dir,
+                       int shard_num,
+                       int64 shard_memory,
+                       int shard_cache_capacity,
                        int pre_known_value_size)
     : shm_dir_(shm_dir),
       shard_num_(shard_num),
@@ -168,7 +177,7 @@ PetMultiKV::PetMultiKV(const std::vector<std::string> &shm_dir, int shard_num,
       shard_cache_capacity_(shard_cache_capacity),
       pre_known_value_size_(pre_known_value_size) {
   CHECK(!shm_dir_.empty());
-  for (const auto &dir : shm_dir) {
+  for (const auto& dir : shm_dir) {
     base::file_util::CreateDirectory(dir);
   }
 
@@ -200,8 +209,11 @@ void PetMultiKV::LoadShard(int shard) {
             << ", shard_cache_capacity:" << shard_cache_capacity_
             << ", pre_known_value_size:" << pre_known_value_size_;
 
-  shm_kv_[shard] = new PetKV(shm_dir(shard), shard_memory_,
-                             shard_cache_capacity_, pre_known_value_size_);
+  shm_kv_[shard] = new PetKV(
+      shm_dir(shard),
+      shard_memory_,
+      shard_cache_capacity_,
+      pre_known_value_size_);
 }
 std::string PetMultiKV::GetInfo() {
   std::string info;
@@ -217,4 +229,4 @@ std::string PetMultiKV::shm_dir(int shard_id) {
   return shm_dir_[idx] + "/" + base::IntToString(shard_id);
 }
 
-}  // namespace base
+} // namespace base

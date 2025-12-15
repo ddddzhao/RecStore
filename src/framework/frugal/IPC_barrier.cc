@@ -1,7 +1,7 @@
 #include "IPC_barrier.h"
 
 namespace recstore {
-void RegisterIPCBarrier(torch::Library &m) {
+void RegisterIPCBarrier(torch::Library& m) {
   m.class_<MultiProcessBarrierHolder>("MultiProcessBarrierHolder")
       .def("Wait", &MultiProcessBarrierHolder::Wait);
 
@@ -10,4 +10,4 @@ void RegisterIPCBarrier(torch::Library &m) {
       .def_static("ClearIPCMemory",
                   &MultiProcessBarrierFactory::ClearIPCMemoryStatic);
 }
-}  // namespace recstore
+} // namespace recstore

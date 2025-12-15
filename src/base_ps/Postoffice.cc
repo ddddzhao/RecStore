@@ -8,12 +8,11 @@
 #include <iostream>
 #include <mutex>
 
-
 DEFINE_int32(num_server_processes, 1, "# of server processes");
 DEFINE_int32(num_client_processes, 1, "# of client processes");
 DEFINE_int32(global_id, 0, "");
 
-static std::string trim(const std::string &s) {
+static std::string trim(const std::string& s) {
   std::string res = s;
   if (!res.empty()) {
     res.erase(0, res.find_first_not_of(" "));
@@ -37,10 +36,10 @@ XPostoffice::XPostoffice() {
 
   global_id_ = g_id;
   if (0 <= g_id && g_id < num_servers_) {
-    actor_ = ACTOR_SERVER;
+    actor_     = ACTOR_SERVER;
     server_id_ = g_id;
   } else if (num_servers_ <= g_id && g_id < num_servers_ + num_clients_) {
-    actor_ = ACTOR_CLIENT;
+    actor_     = ACTOR_CLIENT;
     client_id_ = g_id - num_servers_;
   } else {
     LOG(FATAL) << "Invalid XPostoffice" << std::endl
@@ -51,11 +50,11 @@ XPostoffice::XPostoffice() {
   ConnectMemcached();
 }
 
-std::string XPostoffice::MemCachedGet(const std::string &key) {
+std::string XPostoffice::MemCachedGet(const std::string& key) {
   size_t l;
   uint32_t flags;
   memcached_return rc;
-  char *res;
+  char* res;
   while (true) {
     res = memcached_get(memc_, key.c_str(), key.size(), &l, &flags, &rc);
     if (rc == MEMCACHED_SUCCESS) {
@@ -68,12 +67,18 @@ std::string XPostoffice::MemCachedGet(const std::string &key) {
   return ret;
 }
 
-void XPostoffice::MemCachedSet(const std::string &key,
-                               const std::string &value) {
+void XPostoffice::MemCachedSet(const std::string& key,
+                               const std::string& value) {
   memcached_return rc;
   while (true) {
-    rc = memcached_set(memc_, key.c_str(), key.size(), value.c_str(),
-                       value.size(), (time_t)0, (uint32_t)0);
+    rc = memcached_set(
+        memc_,
+        key.c_str(),
+        key.size(),
+        value.c_str(),
+        value.size(),
+        (time_t)0,
+        (uint32_t)0);
     if (rc == MEMCACHED_SUCCESS) {
       break;
     }
@@ -82,7 +87,7 @@ void XPostoffice::MemCachedSet(const std::string &key,
 }
 
 void XPostoffice::ConnectMemcached() {
-  memcached_server_st *servers = NULL;
+  memcached_server_st* servers = NULL;
   memcached_return rc;
   std::ifstream conf(MAYFLY_PATH "/memcached.conf");
   if (!conf) {
@@ -94,8 +99,8 @@ void XPostoffice::ConnectMemcached() {
   std::cout << "use memcached in " << trim(addr) << ":" << trim(port)
             << std::endl;
 
-  memc_ = memcached_create(NULL);
-  servers = memcached_server_list_append(servers, trim(addr).c_str(),
-                                         std::stoi(trim(port)), &rc);
+  memc_   = memcached_create(NULL);
+  servers = memcached_server_list_append(
+      servers, trim(addr).c_str(), std::stoi(trim(port)), &rc);
   rc = memcached_server_push(memc_, servers);
 }

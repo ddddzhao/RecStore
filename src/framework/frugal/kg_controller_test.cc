@@ -8,10 +8,10 @@ DEFINE_string(backMode, "CppSync", "CppSync or CppAsync");
 namespace recstore {
 
 class CircleBuffer {
- private:
+private:
   int L_;
   int start_ = 0;
-  int end_ = 0;
+  int end_   = 0;
 
   int rank_;
   std::vector<c10::intrusive_ptr<SlicedTensor>> sliced_id_tensor_;
@@ -23,33 +23,37 @@ class CircleBuffer {
 
   const bool is_async_process_;
 
- public:
+public:
   CircleBuffer(int L, int rank, std::string backmode)
       : L_(L),
         rank_(rank),
         backmode_(backmode),
-        is_async_process_(backmode_ == "CppAsync" ||
-                          backmode_ == "CppAsyncV2") {
+        is_async_process_(
+            backmode_ == "CppAsync" || backmode_ == "CppAsyncV2") {
     for (int i = 0; i < L_; i++) {
       sliced_id_tensor_.push_back(IPCTensorFactory::NewSlicedIPCTensor(
-          folly::sformat("cached_sampler_r{}_{}", rank, i), {int(1e6)},
+          folly::sformat("cached_sampler_r{}_{}", rank, i),
+          {int(1e6)},
           torch::kInt64));
     }
 
-    circle_buffer_end_ = IPCTensorFactory::NewIPCTensor(
-                             folly::sformat("circle_buffer_end_r{}", rank),
-                             {int(1)}, torch::kInt64)
-                             .value();
+    circle_buffer_end_ =
+        IPCTensorFactory::NewIPCTensor(
+            folly::sformat("circle_buffer_end_r{}", rank),
+            {int(1)},
+            torch::kInt64)
+            .value();
 
     circle_buffer_old_end_ =
         IPCTensorFactory::NewIPCTensor(
-            folly::sformat("circle_buffer_end_cppseen_r{}", rank), {int(1)},
+            folly::sformat("circle_buffer_end_cppseen_r{}", rank),
+            {int(1)},
             torch::kInt64)
             .value();
 
     step_tensor_ =
-        IPCTensorFactory::NewIPCTensor(folly::sformat("step_r{}", rank),
-                                       {int(L_)}, torch::kInt64)
+        IPCTensorFactory::NewIPCTensor(
+            folly::sformat("step_r{}", rank), {int(L_)}, torch::kInt64)
             .value();
 
     circle_buffer_end_.fill_(0);
@@ -76,8 +80,8 @@ class CircleBuffer {
 
     if (end_ == start_) {
       // 这里防止吃样本
-      // TODO:只有当start_在cppend~end_之间的时候，才能不等待，往后走  不这么写是有BUG的，但没时间查了
-      // while (1) {
+      // TODO:只有当start_在cppend~end_之间的时候，才能不等待，往后走
+      // 不这么写是有BUG的，但没时间查了 while (1) {
       //   int64_t cppend = circle_buffer_old_end_[0].item<int64_t>();
       //   for (int i = cppend; i < end_ + L_; i++) {
       //     int j = i % L_;
@@ -105,9 +109,12 @@ class CircleBuffer {
 };
 
 class BasePerfSampler {
- public:
-  BasePerfSampler(int rank, int L, int num_ids_per_step,
-                  int64_t full_emb_capacity, std::string backmode)
+public:
+  BasePerfSampler(int rank,
+                  int L,
+                  int num_ids_per_step,
+                  int64_t full_emb_capacity,
+                  std::string backmode)
       : rank_(rank),
         L_(L),
         ids_circle_buffer_(L, rank, backmode),
@@ -126,9 +133,9 @@ class BasePerfSampler {
   }
 
   std::pair<int, torch::Tensor> __next__() {
-    auto entity_id = gen_next_sample();
+    auto entity_id      = gen_next_sample();
     auto [step, sample] = ids_circle_buffer_.Pop();
-    
+
     // TODO: 继上面的问题，这里只能先用同步
     ids_circle_buffer_.Push(sampler_iter_num_, entity_id, false);
     // ids_circle_buffer_.Push(sampler_iter_num_, entity_id, true);
@@ -136,7 +143,7 @@ class BasePerfSampler {
     return std::make_pair(step, sample->GetSlicedTensor());
   }
 
- protected:
+protected:
   virtual torch::Tensor gen_next_sample() = 0;
 
   int rank_;
@@ -149,13 +156,16 @@ class BasePerfSampler {
 };
 
 class TestPerfSampler : public BasePerfSampler {
- public:
-  TestPerfSampler(int rank, int L, int num_ids_per_step, int full_emb_capacity,
+public:
+  TestPerfSampler(int rank,
+                  int L,
+                  int num_ids_per_step,
+                  int full_emb_capacity,
                   std::string backmode)
-      : BasePerfSampler(rank, L, num_ids_per_step, full_emb_capacity,
-                        backmode) {}
+      : BasePerfSampler(
+            rank, L, num_ids_per_step, full_emb_capacity, backmode) {}
 
- protected:
+protected:
   torch::Tensor gen_next_sample() override {
     // return torch::randint(0, full_emb_capacity_, {num_ids_per_step_}).cuda();
     return UniformRandom();
@@ -171,7 +181,7 @@ class TestPerfSampler : public BasePerfSampler {
 };
 
 class VirtualEnvironment {
- private:
+private:
   int num_gpus_;
   int emb_dim_;
   int64_t cached_capacity_;
@@ -198,20 +208,20 @@ class VirtualEnvironment {
 
   std::vector<std::thread> threads_;
 
-  base::Barrier *barrier_;
+  base::Barrier* barrier_;
   std::string backgrad_init_;
 
- public:
-  VirtualEnvironment(const std::string &json_str, int64_t cached_capcacity) {
-    auto json_config = json::parse(json_str);
-    num_gpus_ = json_config.at("num_gpus");
-    emb_dim_ = json_config.at("emb_dim");
-    cached_capacity_ = cached_capcacity;
+public:
+  VirtualEnvironment(const std::string& json_str, int64_t cached_capcacity) {
+    auto json_config   = json::parse(json_str);
+    num_gpus_          = json_config.at("num_gpus");
+    emb_dim_           = json_config.at("emb_dim");
+    cached_capacity_   = cached_capcacity;
     full_emb_capacity_ = json_config.at("full_emb_capacity");
-    num_ids_per_step_ = json_config.at("num_ids_per_step");
-    L_ = json_config.at("L");
-    backmode_ = json_config.at("backwardMode");
-    backgrad_init_ = json_config.at("backgrad_init");
+    num_ids_per_step_  = json_config.at("num_ids_per_step");
+    L_                 = json_config.at("L");
+    backmode_          = json_config.at("backwardMode");
+    backgrad_init_     = json_config.at("backgrad_init");
 
     barrier_ = new base::Barrier(num_gpus_);
 
@@ -226,50 +236,65 @@ class VirtualEnvironment {
     for (int rank = 0; rank < num_gpus_; rank++) {
       embedding_cache_.push_back(IPCTensorFactory::NewIPCGPUTensor(
           folly::sformat("embedding_cache_{}", rank),
-          {cached_capacity_, emb_dim_}, torch::kFloat32, rank));
+          {cached_capacity_, emb_dim_},
+          torch::kFloat32,
+          rank));
 
       input_keys_.push_back(IPCTensorFactory::NewSlicedIPCTensor(
           folly::sformat("input_keys_{}", rank), {int(1e6)}, torch::kInt64));
       input_keys_neg_.push_back(IPCTensorFactory::NewSlicedIPCTensor(
-          folly::sformat("input_keys_neg_{}", rank), {int(1e6)},
+          folly::sformat("input_keys_neg_{}", rank),
+          {int(1e6)},
           torch::kInt64));
 
       if (backgrad_init_ == "cpu") {
         backward_grads_.push_back(IPCTensorFactory::NewSlicedIPCTensor(
-            folly::sformat("backward_grads_{}", rank), {int(1e6), emb_dim_},
+            folly::sformat("backward_grads_{}", rank),
+            {int(1e6), emb_dim_},
             torch::kFloat32));
         backward_grads_neg_.push_back(IPCTensorFactory::NewSlicedIPCTensor(
-            folly::sformat("backward_grads_neg_{}", rank), {int(1e6), emb_dim_},
+            folly::sformat("backward_grads_neg_{}", rank),
+            {int(1e6), emb_dim_},
             torch::kFloat32));
       } else if (backgrad_init_ == "gpu") {
         backward_grads_.push_back(IPCTensorFactory::NewSlicedIPCGPUTensor(
-            folly::sformat("backward_grads_{}", rank), {int(1e6), emb_dim_},
-            torch::kFloat32, rank));
+            folly::sformat("backward_grads_{}", rank),
+            {int(1e6), emb_dim_},
+            torch::kFloat32,
+            rank));
         backward_grads_neg_.push_back(IPCTensorFactory::NewSlicedIPCGPUTensor(
-            folly::sformat("backward_grads_neg_{}", rank), {int(1e6), emb_dim_},
-            torch::kFloat32, rank));
+            folly::sformat("backward_grads_neg_{}", rank),
+            {int(1e6), emb_dim_},
+            torch::kFloat32,
+            rank));
       } else if (backgrad_init_ == "both") {
         backward_grads_gpu_.push_back(IPCTensorFactory::NewSlicedIPCGPUTensor(
-            folly::sformat("backward_grads_{}_gpu", rank), {int(1e6), emb_dim_},
-            torch::kFloat32, rank));
+            folly::sformat("backward_grads_{}_gpu", rank),
+            {int(1e6), emb_dim_},
+            torch::kFloat32,
+            rank));
         backward_grads_neg_gpu_.push_back(
             IPCTensorFactory::NewSlicedIPCGPUTensor(
                 folly::sformat("backward_grads_neg_{}_gpu", rank),
-                {int(1e6), emb_dim_}, torch::kFloat32, rank));
+                {int(1e6), emb_dim_},
+                torch::kFloat32,
+                rank));
 
         backward_grads_cpu_.push_back(IPCTensorFactory::NewSlicedIPCTensor(
-            folly::sformat("backward_grads_{}", rank), {int(1e6), emb_dim_},
+            folly::sformat("backward_grads_{}", rank),
+            {int(1e6), emb_dim_},
             torch::kFloat32));
         backward_grads_neg_cpu_.push_back(IPCTensorFactory::NewSlicedIPCTensor(
-            folly::sformat("backward_grads_neg_{}", rank), {int(1e6), emb_dim_},
+            folly::sformat("backward_grads_neg_{}", rank),
+            {int(1e6), emb_dim_},
             torch::kFloat32));
 
       } else {
         LOG(FATAL) << "error";
       }
 
-      test_perf_sampler_.emplace_back(rank, L_, num_ids_per_step_,
-                                      full_emb_capacity_, backmode_);
+      test_perf_sampler_.emplace_back(
+          rank, L_, num_ids_per_step_, full_emb_capacity_, backmode_);
     }
   }
 
@@ -291,11 +316,11 @@ class VirtualEnvironment {
     }
   }
 
- private:
+private:
   void RunThread(int rank) {
-    KGCacheController *controller = KGCacheController::GetInstance();
+    KGCacheController* controller = KGCacheController::GetInstance();
     cudaSetDevice(rank);
-    int step_no = 0;
+    int step_no   = 0;
     auto backgrad = torch::randn({num_ids_per_step_, emb_dim_}).cuda();
     while (true) {
       // if (rank == 0 && step_no == 10) ProfilerStart("/tmp/profile.prof");
@@ -335,18 +360,20 @@ class VirtualEnvironment {
       barrier_->Wait();
 
       step_no++;
-      if (rank == 0) controller->BlockToStepN(step_no);
+      if (rank == 0)
+        controller->BlockToStepN(step_no);
       barrier_->Wait();
 
       // if (rank == 0 && step_no == 100) ProfilerStop();
-      if (step_no == 30) break;
+      if (step_no == 30)
+        break;
     }
   }
 };
 
-}  // namespace recstore
+} // namespace recstore
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   folly::init(&argc, &argv);
   std::string json_str = R"({{
             "num_gpus": 4,
@@ -367,7 +394,7 @@ int main(int argc, char **argv) {
 
   json_str = json_config.dump();
 
-  int64_t full_emb_capacity = 100LL * int(1e6);
+  int64_t full_emb_capacity        = 100LL * int(1e6);
   json_config["full_emb_capacity"] = full_emb_capacity;
 
   LOG(INFO) << json_config;
@@ -379,7 +406,7 @@ int main(int argc, char **argv) {
 
   xmh::Reporter::StartReportThread();
 
-  float cache_ratio = 0.02;
+  float cache_ratio              = 0.02;
   int64_t total_cached_capcacity = full_emb_capacity * cache_ratio * num_gpus;
   int64_t per_shard_cached_capcacity = full_emb_capacity * cache_ratio;
 
@@ -393,7 +420,7 @@ int main(int argc, char **argv) {
 
   auto hold_pointer =
       KGCacheController::Init(json_str, cached_range, full_emb_capacity);
-  KGCacheController *controller = KGCacheController::GetInstance();
+  KGCacheController* controller = KGCacheController::GetInstance();
   controller->RegTensorsPerProcess();
   env.PrefillSampler();
   env.StartThreads();

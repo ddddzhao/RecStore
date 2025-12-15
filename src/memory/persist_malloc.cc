@@ -8,15 +8,15 @@ DEFINE_double(shm_malloc_healthy_rate, 0.95, "shm malloc healthy rate");
 DECLARE_double(shm_malloc_healthy_rate);
 
 namespace base {
-PersistLoopShmMalloc::PersistLoopShmMalloc(const std::string &filename,
-                                           int64 memory_size , std::string medium ) {
+PersistLoopShmMalloc::PersistLoopShmMalloc(
+    const std::string& filename, int64 memory_size, std::string medium) {
   block_num_ = 0;
   while (((block_num_ + 64) >> 3) + (block_num_ + 64) * sizeof(uint64) <=
          memory_size) {
     block_num_ += 64;
   }
-  shm_file_.type_ = medium;
-  healthy_used_ = block_num_ * FLAGS_shm_malloc_healthy_rate;
+  shm_file_.type_  = medium;
+  healthy_used_    = block_num_ * FLAGS_shm_malloc_healthy_rate;
   bool file_exists = base::file_util::PathExists(filename);
   if (!shm_file_.Initialize(filename, memory_size)) {
     file_exists = false;
@@ -25,8 +25,8 @@ PersistLoopShmMalloc::PersistLoopShmMalloc(const std::string &filename,
         << filename << " " << memory_size;
   }
 
-  used_bits_ = reinterpret_cast<uint64 *>(shm_file_.Data());
-  data_ = shm_file_.Data() + (block_num_ >> 3);
+  used_bits_    = reinterpret_cast<uint64*>(shm_file_.Data());
+  data_         = shm_file_.Data() + (block_num_ >> 3);
   load_success_ = file_exists;
   Initialize();
   if (!file_exists) {
@@ -39,14 +39,14 @@ PersistLoopShmMalloc::PersistLoopShmMalloc(const std::string &filename,
 void PersistLoopShmMalloc::AddMallocs4Recovery(int64_t shm_offset) {
   // NOTE(xieminhui) use atomic instr to reduce conflict between threads.
   // But the code below has redundancy with the function UseBlock
-  __sync_fetch_and_add(&total_malloc_, 1);  // NOLINT
+  __sync_fetch_and_add(&total_malloc_, 1); // NOLINT
   int64_t offset = shm_offset;
   CHECK_GE(offset, 0);
   CHECK_LT(offset, block_num_ * 8L);
-  int memory_size = GetMallocSize(offset);
+  int memory_size      = GetMallocSize(offset);
   int memory_block_num = BlockNum(memory_size);
 
-  __sync_fetch_and_add(&total_used_, memory_block_num + 1);  // NOLINT
+  __sync_fetch_and_add(&total_used_, memory_block_num + 1); // NOLINT
   int64_t sizeBlockIdx = BlockIndex(offset) - 1;
 
   for (int i = 1; i <= memory_block_num; i++) {
@@ -55,8 +55,10 @@ void PersistLoopShmMalloc::AddMallocs4Recovery(int64_t shm_offset) {
     uint64 temp;
     do {
       temp = used_bits_[index >> 6];
-    } while (!__sync_bool_compare_and_swap(&used_bits_[index >> 6],  // NOLINT
-                                           temp, temp | (1ul << (index & 63))));
+    } while (!__sync_bool_compare_and_swap(
+        &used_bits_[index >> 6], // NOLINT
+        temp,
+        temp | (1ul << (index & 63))));
   }
 }
 
@@ -82,7 +84,7 @@ bool PersistLoopShmMalloc::UnusedMemoryValid(int64 block_index) const {
 }
 
 void PersistLoopShmMalloc::GetMallocsAppend(
-    std::vector<char *> *mallocs_data) const {
+    std::vector<char*>* mallocs_data) const {
   for (int64 i = 0; i < block_num_ - 1; ++i) {
     if (!Used(i) && Used(i + 1)) {
       CHECK_GT(Block()[i], 0) << "block id = " << i;
@@ -92,7 +94,7 @@ void PersistLoopShmMalloc::GetMallocsAppend(
 }
 
 void PersistLoopShmMalloc::GetMallocsAppend(
-    std::vector<int64> *mallocs_offset) const {
+    std::vector<int64>* mallocs_offset) const {
   for (int64 i = 0; i < block_num_ - 1; ++i) {
     if (!Used(i) && Used(i + 1)) {
       CHECK_GT(Block()[i], 0) << "block id = " << i;
@@ -104,20 +106,22 @@ void PersistLoopShmMalloc::GetMallocsAppend(
 bool PersistLoopShmMalloc::MemoryValid() const {
   int64 block_index = 0;
   while (block_index < block_num_) {
-    if (Used(block_index)) return false;
-    if (!UnusedMemoryValid(block_index)) return false;
+    if (Used(block_index))
+      return false;
+    if (!UnusedMemoryValid(block_index))
+      return false;
     block_index += 1 + BlockNum(Block()[block_index]);
   }
   return block_index == block_num_;
 }
 
-char *PersistLoopShmMalloc::New(int memory_size) {
+char* PersistLoopShmMalloc::New(int memory_size) {
   CHECK_GE(memory_size, 0);
   if (memory_size == 0) {
     return data_ + sizeof(uint64) * block_num_;
   }
   base::AutoLock lock(lock_);
-  int memory_block_num = BlockNum(memory_size);
+  int memory_block_num  = BlockNum(memory_size);
   auto fast_malloc_list = fast_malloc_lists_.Get(memory_block_num);
   if (fast_malloc_list && enable_fast_malloc_) {
     // 先尝试从刚回收的内存块中分配
@@ -144,7 +148,7 @@ char *PersistLoopShmMalloc::New(int memory_size) {
       }
     }
   }
-  int64 offset = 0;
+  int64 offset       = 0;
   int64 malloc_block = last_malloc_block_;
   while (offset < block_num_) {
     if (malloc_block + memory_block_num + 1 <= block_num_) {
@@ -184,11 +188,13 @@ char *PersistLoopShmMalloc::New(int memory_size) {
   return NULL;
 }
 
-bool PersistLoopShmMalloc::Free(void *memory_data) {
-  auto data = reinterpret_cast<const char *>(memory_data);
+bool PersistLoopShmMalloc::Free(void* memory_data) {
+  auto data    = reinterpret_cast<const char*>(memory_data);
   int64 offset = GetMallocOffset(data);
-  if (offset < 0) return false;
-  if (offset == sizeof(uint64) * block_num_) return true;
+  if (offset < 0)
+    return false;
+  if (offset == sizeof(uint64) * block_num_)
+    return true;
   base::AutoLock lock(lock_);
   int64 block_index = BlockIndex(offset) - 1;
   if (!Used(block_index) && UnusedMemoryValid(block_index)) {
@@ -219,4 +225,4 @@ bool PersistLoopShmMalloc::Free(void *memory_data) {
   return false;
 }
 
-}  // namespace base
+} // namespace base

@@ -32,7 +32,8 @@ class MinEpochTable {
     }
 
     Epoch MinEpoch() const {
-      if (epoch_list_->size() == 0) return 0;
+      if (epoch_list_->size() == 0)
+        return 0;
       return *std::min_element(epoch_list_->begin(), epoch_list_->end());
     }
 
@@ -66,7 +67,7 @@ class MinEpochTable {
   using Entry = EpochEntry;
   static_assert(sizeof(Entry) == 64, "Unexpected table entry size");
 
- public:
+public:
   MinEpochTable(int max_thread_num = 128) : max_thread_num_(max_thread_num) {
     // (char[sizeof(Entry)]) "bla";
     table_ = new Entry[max_thread_num_];
@@ -110,12 +111,13 @@ class MinEpochTable {
   //   return ret;
   // }
 
- private:
+private:
   Entry* GetEntryForThread() {
     thread_local Entry* thread_local_entry = nullptr;
-    if (thread_local_entry) return thread_local_entry;
+    if (thread_local_entry)
+      return thread_local_entry;
     uint64_t current_thread_id = pthread_self();
-    thread_local_entry = ReserveEntry(
+    thread_local_entry         = ReserveEntry(
         GetHash(current_thread_id) % max_thread_num_, current_thread_id);
     return thread_local_entry;
   }
@@ -130,7 +132,7 @@ class MinEpochTable {
       // Reserve an entry in the table.
       for (uint64_t i = 0; i < max_thread_num_; ++i) {
         uint64_t indexToTest = (start_index + i) % max_thread_num_;
-        Entry& entry = table_[indexToTest];
+        Entry& entry         = table_[indexToTest];
         if (entry.thread_id_ == 0) {
           uint64_t expected = 0;
           // Atomically grab a slot. No memory barriers needed.
@@ -148,7 +150,7 @@ class MinEpochTable {
     }
   }
 
- private:
+private:
   void ReclaimOldEntries() {}
   std::atomic<Epoch> current_epoch_;
   const int max_thread_num_;
@@ -156,12 +158,12 @@ class MinEpochTable {
 };
 
 class EpochManager {
- private:
+private:
   EpochManager() : current_epoch_{1}, safe_to_reclaim_epoch_{0} {
     epoch_table_ = std::make_unique<MinEpochTable>();
   }
 
- public:
+public:
   static EpochManager* GetInstance() {
     static EpochManager instance;
     return &instance;
@@ -202,7 +204,7 @@ class EpochManager {
   //   return epoch_table_->MaxPendingEpochNumPerThread();
   // }
 
- private:
+private:
   std::atomic<Epoch> current_epoch_;
   std::atomic<Epoch> safe_to_reclaim_epoch_;
   std::unique_ptr<MinEpochTable> epoch_table_;
@@ -210,15 +212,15 @@ class EpochManager {
 };
 
 class IGarbageList {
- public:
+public:
   typedef void (*DestroyCallback)(void* callback_context, void* object);
 
   IGarbageList() {}
 
   virtual ~IGarbageList() {}
 
-  virtual bool Initialize(EpochManager* epoch_manager,
-                          size_t size = 4 * 1024 * 1024) {
+  virtual bool
+  Initialize(EpochManager* epoch_manager, size_t size = 4 * 1024 * 1024) {
     (epoch_manager);
     (size);
     return true;
@@ -226,9 +228,9 @@ class IGarbageList {
 
   virtual bool Uninitialize() { return true; }
 
-  virtual bool Push(void* removed_item, DestroyCallback destroy_callback,
-                    void* context) = 0;
+  virtual bool
+  Push(void* removed_item, DestroyCallback destroy_callback, void* context) = 0;
 };
 
-}  // namespace epoch
-}  // namespace base
+} // namespace epoch
+} // namespace base

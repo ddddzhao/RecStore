@@ -191,8 +191,8 @@ TEST_F(SSDExtendibleHashTest, BulkLoadTest) {
 
 TEST_F(SSDExtendibleHashTest, LoadFakeDataTest) {
   const int64_t key_capacity = 50;
-  const int value_size       = sizeof(uint64_t); // 假设 value_size 为指针大小
-  unsigned tid               = 0;
+  const int value_size = sizeof(uint64_t); // 假设 value_size 为指针大小
+  unsigned tid         = 0;
 
   index_->LoadFakeData(key_capacity, value_size);
 

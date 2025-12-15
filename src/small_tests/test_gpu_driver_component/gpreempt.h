@@ -24,16 +24,16 @@ typedef long long NvS64; /* -9223372036854775808 to 9223372036854775807    */
 typedef void* NvP64;     /* 64 bit void pointer                     */
 typedef NvU32 NvHandle;
 typedef NvU8 NvBool;
-#define NV_TRUE ((NvBool)(0 == 0))
-#define NV_FALSE ((NvBool)(0 != 0))
+#  define NV_TRUE ((NvBool)(0 == 0))
+#  define NV_FALSE ((NvBool)(0 != 0))
 
 typedef NvU32 NV_STATUS;
-#define NV_OK 0x00000000
-#define NV_ERR_GENERIC 0x0000FFFF
+#  define NV_OK 0x00000000
+#  define NV_ERR_GENERIC 0x0000FFFF
 
-#define NV_DECLARE_ALIGNED(TYPE_VAR, ALIGN) \
-  TYPE_VAR __attribute__((aligned(ALIGN)))
-#define NV_ALIGN_BYTES(size) __attribute__((aligned(size)))
+#  define NV_DECLARE_ALIGNED(TYPE_VAR, ALIGN)                                  \
+    TYPE_VAR __attribute__((aligned(ALIGN)))
+#  define NV_ALIGN_BYTES(size) __attribute__((aligned(size)))
 
 typedef struct {
   NvHandle hClient;
@@ -45,13 +45,13 @@ typedef struct {
   NvV32 status;
 } NVOS54_PARAMETERS;
 
-#define NVA06C_CTRL_CMD_SET_TIMESLICE (0xa06c0103)
+#  define NVA06C_CTRL_CMD_SET_TIMESLICE (0xa06c0103)
 
 typedef struct NVA06C_CTRL_TIMESLICE_PARAMS {
   NV_DECLARE_ALIGNED(NvU64 timesliceUs, 8);
 } NVA06C_CTRL_TIMESLICE_PARAMS;
 
-#define NVA06C_CTRL_CMD_PREEMPT (0xa06c0105)
+#  define NVA06C_CTRL_CMD_PREEMPT (0xa06c0105)
 
 typedef struct NVA06C_CTRL_PREEMPT_PARAMS {
   NvBool bWait;
@@ -59,28 +59,28 @@ typedef struct NVA06C_CTRL_PREEMPT_PARAMS {
   NvU32 timeoutUs;
 } NVA06C_CTRL_PREEMPT_PARAMS;
 
-#define NVA06F_CTRL_CMD_GPFIFO_SCHEDULE (0xa06f0103)
+#  define NVA06F_CTRL_CMD_GPFIFO_SCHEDULE (0xa06f0103)
 
 typedef struct NVA06F_CTRL_GPFIFO_SCHEDULE_PARAMS {
   NvBool bEnable;
   NvBool bSkipSubmit;
 } NVA06F_CTRL_GPFIFO_SCHEDULE_PARAMS;
 
-#define NVA06F_CTRL_CMD_RESTART_RUNLIST (0xa06f0111)
+#  define NVA06F_CTRL_CMD_RESTART_RUNLIST (0xa06f0111)
 
 typedef struct NVA06F_CTRL_RESTART_RUNLIST_PARAMS {
   NvBool bForceRestart;
   NvBool bBypassWait;
 } NVA06F_CTRL_RESTART_RUNLIST_PARAMS;
 
-#define NVA06C_CTRL_CMD_SET_INTERLEAVE_LEVEL (0xa06c0107)
+#  define NVA06C_CTRL_CMD_SET_INTERLEAVE_LEVEL (0xa06c0107)
 
 typedef struct NVA06C_CTRL_INTERLEAVE_LEVEL_PARAMS {
   NvU32 tsgInterleaveLevel;
 } NVA06C_CTRL_INTERLEAVE_LEVEL_PARAMS;
 
-#define NV2080_CTRL_CMD_FIFO_DISABLE_CHANNELS (0x2080110b)
-#define NV2080_CTRL_FIFO_DISABLE_CHANNELS_MAX_ENTRIES (64)
+#  define NV2080_CTRL_CMD_FIFO_DISABLE_CHANNELS (0x2080110b)
+#  define NV2080_CTRL_FIFO_DISABLE_CHANNELS_MAX_ENTRIES (64)
 
 typedef struct NV2080_CTRL_FIFO_DISABLE_CHANNELS_PARAMS {
   NvBool bDisable;
@@ -96,20 +96,20 @@ typedef struct NV2080_CTRL_FIFO_DISABLE_CHANNELS_PARAMS {
   NvHandle hChannelList[NV2080_CTRL_FIFO_DISABLE_CHANNELS_MAX_ENTRIES];
 } NV2080_CTRL_FIFO_DISABLE_CHANNELS_PARAMS;
 
-#define NV2080_CTRL_CMD_FIFO_RUNLIST_SET_SCHED_POLICY (0x20801115)
-#define NV2080_CTRL_FIFO_RUNLIST_SCHED_POLICY_CHANNEL_INTERLEAVED 0x1
+#  define NV2080_CTRL_CMD_FIFO_RUNLIST_SET_SCHED_POLICY (0x20801115)
+#  define NV2080_CTRL_FIFO_RUNLIST_SCHED_POLICY_CHANNEL_INTERLEAVED 0x1
 
 typedef struct NV2080_CTRL_FIFO_RUNLIST_SET_SCHED_POLICY_PARAMS {
   NvU32 flags;
   NvU32 schedPolicy;
 } NV2080_CTRL_FIFO_RUNLIST_SET_SCHED_POLICY_PARAMS;
 
-#define OP_ALLOC 0xc020462b
-#define OP_CONTROL 0xc020462a
-#define OP_FREE 0xc0204629
-#define OP_QUERY 0xc0204660
+#  define OP_ALLOC 0xc020462b
+#  define OP_CONTROL 0xc020462a
+#  define OP_FREE 0xc0204629
+#  define OP_QUERY 0xc0204660
 
-#define NV_HSUBDEVICE 0x5c000003
+#  define NV_HSUBDEVICE 0x5c000003
 
 typedef NV2080_CTRL_FIFO_DISABLE_CHANNELS_PARAMS NvChannels;
 
@@ -119,14 +119,18 @@ struct NvContext {
   NvChannels channels;
 };
 
-#define NVRMCHECK(cmd)                                                       \
-  do {                                                                       \
-    NV_STATUS status = cmd;                                                  \
-    if (status != NV_OK) printf("%s fail with status 0x%x\n", #cmd, status); \
-  } while (0)
+#  define NVRMCHECK(cmd)                                                       \
+    do {                                                                       \
+      NV_STATUS status = cmd;                                                  \
+      if (status != NV_OK)                                                     \
+        printf("%s fail with status 0x%x\n", #cmd, status);                    \
+    } while (0)
 
-NV_STATUS NvRmControl(NvHandle hClient, NvHandle hObject, NvU32 cmd,
-                      NvP64 params, NvU32 paramsSize);
+NV_STATUS NvRmControl(NvHandle hClient,
+                      NvHandle hObject,
+                      NvU32 cmd,
+                      NvP64 params,
+                      NvU32 paramsSize);
 
 NV_STATUS NvRmQuery(NvContext* pContext);
 
@@ -144,14 +148,18 @@ NV_STATUS NvRmSetPolicy(NvContext ctx);
 
 NV_STATUS NvRmSetLevel(NvContext ctx, NvU32 level);
 
+#  define NV83DE_CTRL_CMD_DEBUG_SUSPEND_CONTEXT                                \
+    (0x83de0317) /* finn: Evaluated from                                       \
+                    "(FINN_GT200_DEBUGGER_DEBUG_INTERFACE_ID << 8) |           \
+                    NV83DE_CTRL_CMD_DEBUG_SUSPEND_CONTEXT_PARAMS_MESSAGE_ID"   \
+                  */
 
-#define NV83DE_CTRL_CMD_DEBUG_SUSPEND_CONTEXT (0x83de0317) /* finn: Evaluated from "(FINN_GT200_DEBUGGER_DEBUG_INTERFACE_ID << 8) | NV83DE_CTRL_CMD_DEBUG_SUSPEND_CONTEXT_PARAMS_MESSAGE_ID" */
-
-#define NV83DE_CTRL_CMD_DEBUG_SUSPEND_ALL_CONTEXTS_FOR_CLIENT_PARAMS_DEFINED       1
-#define NV83DE_CTRL_CMD_DEBUG_SUSPEND_ALL_CONTEXTS_FOR_CLIENT_HAS_RESIDENT_CHANNEL 1
+#  define NV83DE_CTRL_CMD_DEBUG_SUSPEND_ALL_CONTEXTS_FOR_CLIENT_PARAMS_DEFINED 1
+#  define NV83DE_CTRL_CMD_DEBUG_SUSPEND_ALL_CONTEXTS_FOR_CLIENT_HAS_RESIDENT_CHANNEL \
+    1
 typedef struct NV83DE_CTRL_CMD_DEBUG_SUSPEND_ALL_CONTEXTS_FOR_CLIENT_PARAMS {
-    NvU32    waitForEvent;
-    NvHandle hResidentChannel;
+  NvU32 waitForEvent;
+  NvHandle hResidentChannel;
 } NV83DE_CTRL_CMD_DEBUG_SUSPEND_ALL_CONTEXTS_FOR_CLIENT_PARAMS;
 
 /*
@@ -162,7 +170,7 @@ int set_priority(NvContext ctx, int priority);
 
 #else
 
-#include <linux/kfd_ioctl.h>
+#  include <linux/kfd_ioctl.h>
 
 struct kfd_ioctl_wave_reset_args {
   __u32 gpu_id;
@@ -178,7 +186,7 @@ struct kfd_ioctl_dbg_trap_suspend_queues_args {
 
 int hipGetFd();
 int hipResetWavefronts(int fd);
-int hipSuspendStreams(int fd, std::vector<int> &stream_ids);
-int hipResumeStreams(int fd, std::vector<int> &stream_ids);
+int hipSuspendStreams(int fd, std::vector<int>& stream_ids);
+int hipResumeStreams(int fd, std::vector<int>& stream_ids);
 
 #endif

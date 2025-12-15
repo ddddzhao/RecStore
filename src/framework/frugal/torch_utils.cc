@@ -5,7 +5,7 @@ namespace recstore {
 
 namespace {
 template <typename T>
-std::string toStringInner(const torch::Tensor &tensor, bool simplified = true) {
+std::string toStringInner(const torch::Tensor& tensor, bool simplified = true) {
   std::stringstream ss;
   if (tensor.dim() == 1) {
     if (simplified) {
@@ -36,9 +36,9 @@ std::string toStringInner(const torch::Tensor &tensor, bool simplified = true) {
   }
   return ss.str();
 }
-}  // namespace
+} // namespace
 
-std::string toString(const torch::Tensor &tensor, bool simplified) {
+std::string toString(const torch::Tensor& tensor, bool simplified) {
   if (tensor.scalar_type() == torch::kFloat32)
     return toStringInner<float>(tensor, simplified);
   else if (tensor.scalar_type() == torch::kInt64)
@@ -49,13 +49,13 @@ std::string toString(const torch::Tensor &tensor, bool simplified) {
     LOG(FATAL) << "to String, not supported type " << tensor.scalar_type();
 }
 
-std::string toString(c10::intrusive_ptr<recstore::SlicedTensor> tensor,
-                     bool simplified) {
+std::string
+toString(c10::intrusive_ptr<recstore::SlicedTensor> tensor, bool simplified) {
   return toString(tensor->GetSlicedTensor(), simplified);
 }
 
-std::string toString(const SubGradTensor &tensor, bool simplified) {
+std::string toString(const SubGradTensor& tensor, bool simplified) {
   return toString(tensor.to_tensor(), simplified);
 }
 
-}  // namespace recstore
+} // namespace recstore

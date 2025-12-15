@@ -8,14 +8,15 @@ void read() {
   std::ifstream file("/tmp/ssd", std::ifstream::binary);
   float f;
   cout << "1111111111" << endl;
-  while (file >> f) std::cout << f << std::endl;
+  while (file >> f)
+    std::cout << f << std::endl;
   cout << "1111111111" << endl;
   return;
 }
 
 void write() {
   std::vector<float> float_vec;
-  char *buffer = (char *)malloc(512 * 100);
+  char* buffer = (char*)malloc(512 * 100);
   memset(buffer, 0, 512 * 100);
   for (int i = 0; i < 100; i++) {
     float_vec.assign(32, i);

@@ -20,7 +20,7 @@
 #include <vector>
 
 #ifndef XMH_PERF
-#define XMH_PERF
+#  define XMH_PERF
 #endif
 
 #ifndef XMH_DEBUG
@@ -34,9 +34,9 @@
 #include "base/log.h"
 
 class XDebug {
- public:
-  static void AssertTensorEq(const float *emb, int dim, uint64_t value,
-                             const std::string &debug_str) {
+public:
+  static void AssertTensorEq(
+      const float* emb, int dim, uint64_t value, const std::string& debug_str) {
     for (int i = 0; i < dim; i++) {
       CHECK(std::abs(emb[i] - value) < 1e-6) << debug_str;
     }
@@ -44,15 +44,15 @@ class XDebug {
 };
 
 #ifndef unlikely
-#define unlikely(expr) __builtin_expect(!!(expr), 0)
-#define likely(expr) __builtin_expect(!!(expr), 1)
+#  define unlikely(expr) __builtin_expect(!!(expr), 0)
+#  define likely(expr) __builtin_expect(!!(expr), 1)
 #endif
 
 namespace xmh {
 
 class DrawTable {
-  static void DrawLine(std::stringstream &ss, const std::vector<int> &max,
-                       int columns) {
+  static void
+  DrawLine(std::stringstream& ss, const std::vector<int>& max, int columns) {
     for (int i = 0; i < columns; i++) {
       ss << "+-";
       for (int j = 0; j <= max[i]; j++) {
@@ -62,11 +62,12 @@ class DrawTable {
     ss << '+' << std::endl;
   }
 
- public:
-  static void DrawTB(std::stringstream &ss, const std::vector<int> &max,
-                     const std::vector<std::string> &header,
-                     const std::vector<std::vector<std::string>> &str) {
-    int row = str.size();
+public:
+  static void DrawTB(std::stringstream& ss,
+                     const std::vector<int>& max,
+                     const std::vector<std::string>& header,
+                     const std::vector<std::vector<std::string>>& str) {
+    int row     = str.size();
     int columns = str[0].size();
     DrawLine(ss, max, columns);
     for (int i = 0; i < header.size(); i++) {
@@ -90,7 +91,7 @@ class DrawTable {
 class SpinLock {
   std::atomic_flag locked = ATOMIC_FLAG_INIT;
 
- public:
+public:
   void Lock() {
     while (locked.test_and_set(std::memory_order_acquire)) {
       ;
@@ -100,15 +101,15 @@ class SpinLock {
 };
 
 class Histogram {
- public:
+public:
   Histogram() {}
   ~Histogram() {}
 
   void Clear() {
-    min_ = kBucketLimit(kNumBuckets - 1);
-    max_ = 0;
-    num_ = 0;
-    sum_ = 0;
+    min_         = kBucketLimit(kNumBuckets - 1);
+    max_         = 0;
+    num_         = 0;
+    sum_         = 0;
     sum_squares_ = 0;
     for (int i = 0; i < kNumBuckets; i++) {
       buckets_[i] = 0;
@@ -121,15 +122,19 @@ class Histogram {
       b++;
     }
     buckets_[b] += 1.0;
-    if (min_ > value) min_ = value;
-    if (max_ < value) max_ = value;
+    if (min_ > value)
+      min_ = value;
+    if (max_ < value)
+      max_ = value;
     num_++;
     sum_ += value;
     sum_squares_ += (value * value);
   }
-  void Merge(const Histogram &other) {
-    if (other.min_ < min_) min_ = other.min_;
-    if (other.max_ > max_) max_ = other.max_;
+  void Merge(const Histogram& other) {
+    if (other.min_ < min_)
+      min_ = other.min_;
+    if (other.max_ > max_)
+      max_ = other.max_;
     num_ += other.num_;
     sum_ += other.sum_;
     sum_squares_ += other.sum_squares_;
@@ -141,25 +146,38 @@ class Histogram {
   std::string ToString() const {
     std::string r;
     char buf[200];
-    std::snprintf(buf, sizeof(buf),
-                  "Count: %.0f  Average: %.4f  StdDev: %.2f\n", num_, Average(),
-                  StandardDeviation());
+    std::snprintf(
+        buf,
+        sizeof(buf),
+        "Count: %.0f  Average: %.4f  StdDev: %.2f\n",
+        num_,
+        Average(),
+        StandardDeviation());
     r.append(buf);
-    std::snprintf(buf, sizeof(buf), "Min: %.4f  Median: %.4f  Max: %.4f\n",
-                  (num_ == 0.0 ? 0.0 : min_), Median(), max_);
+    std::snprintf(
+        buf,
+        sizeof(buf),
+        "Min: %.4f  Median: %.4f  Max: %.4f\n",
+        (num_ == 0.0 ? 0.0 : min_),
+        Median(),
+        max_);
     r.append(buf);
     r.append("------------------------------------------------------\n");
     const double mult = 100.0 / num_;
-    double sum = 0;
+    double sum        = 0;
     for (int b = 0; b < kNumBuckets; b++) {
-      if (buckets_[b] <= 0.0) continue;
+      if (buckets_[b] <= 0.0)
+        continue;
       sum += buckets_[b];
-      std::snprintf(buf, sizeof(buf), "[ %7.0f, %7.0f ) %7.0f %7.3f%% %7.3f%% ",
-                    ((b == 0) ? 0.0 : kBucketLimit(b - 1)),  // left
-                    kBucketLimit(b),                         // right
-                    buckets_[b],                             // count
-                    mult * buckets_[b],                      // percentage
-                    mult * sum);  // cumulative percentage
+      std::snprintf(
+          buf,
+          sizeof(buf),
+          "[ %7.0f, %7.0f ) %7.0f %7.3f%% %7.3f%% ",
+          ((b == 0) ? 0.0 : kBucketLimit(b - 1)), // left
+          kBucketLimit(b),                        // right
+          buckets_[b],                            // count
+          mult * buckets_[b],                     // percentage
+          mult * sum);                            // cumulative percentage
       r.append(buf);
 
       // Add hash marks based on percentage; 20 marks for 100%.
@@ -170,17 +188,19 @@ class Histogram {
     return r;
   }
 
- private:
+private:
   enum { kNumBuckets = 154 };
 
   double Median() const { return Percentile(50.0); }
   double Percentile(double p) const;
   double Average() const {
-    if (num_ == 0.0) return 0;
+    if (num_ == 0.0)
+      return 0;
     return sum_ / num_;
   }
   double StandardDeviation() const {
-    if (num_ == 0.0) return 0;
+    if (num_ == 0.0)
+      return 0;
     double variance = (sum_squares_ * num_ - sum_ * sum_) / (num_ * num_);
     return sqrt(variance);
   }
@@ -223,25 +243,25 @@ class Counters {
 
     std::array<double, kCounterLen_> durations_;
     bool isOverflow_ = false;
-    int index_ = 0;
+    int index_       = 0;
     SpinLock mutex_;
   };
 
   static constexpr int kShards = 32;
 
- public:
-  Counters() = default;
-  Counters(const Counters &) = default;
+public:
+  Counters()                = default;
+  Counters(const Counters&) = default;
 
   double mean() {
     double mean = 0;
-    int count = 0;
+    int count   = 0;
     for (int tid = 0; tid < kShards; tid++) {
       perThreadCounter_[tid].mutex_.Lock();
-      int isOverflow = perThreadCounter_[tid].isOverflow_;
-      int index = perThreadCounter_[tid].index_;
-      int last = isOverflow ? PerThreadCounter::kCounterLen_ - 1 : index;
-      auto &durations = perThreadCounter_[tid].durations_;
+      int isOverflow  = perThreadCounter_[tid].isOverflow_;
+      int index       = perThreadCounter_[tid].index_;
+      int last        = isOverflow ? PerThreadCounter::kCounterLen_ - 1 : index;
+      auto& durations = perThreadCounter_[tid].durations_;
       for (int i = 0; i < last; i++) {
         mean = (mean * count + durations[i]) / (count + 1);
         count++;
@@ -254,7 +274,8 @@ class Counters {
   double now() {
     for (int tid = 0; tid < kShards; tid++) {
       int index = perThreadCounter_[tid].index_;
-      if (index != 0) return perThreadCounter_[tid].durations_[index - 1];
+      if (index != 0)
+        return perThreadCounter_[tid].durations_[index - 1];
       if (perThreadCounter_[tid].isOverflow_)
         return perThreadCounter_[tid]
             .durations_[PerThreadCounter::kCounterLen_ - 1];
@@ -268,14 +289,15 @@ class Counters {
     std::vector<double> all_durations;
     for (int tid = 0; tid < kShards; tid++) {
       bool isOverflow = perThreadCounter_[tid].isOverflow_;
-      int index = perThreadCounter_[tid].index_;
-      int last = isOverflow ? PerThreadCounter::kCounterLen_ - 1 : index;
-      auto &durations = perThreadCounter_[tid].durations_;
-      for (int i = 0; i < last; i++) all_durations.push_back(durations[i]);
+      int index       = perThreadCounter_[tid].index_;
+      int last        = isOverflow ? PerThreadCounter::kCounterLen_ - 1 : index;
+      auto& durations = perThreadCounter_[tid].durations_;
+      for (int i = 0; i < last; i++)
+        all_durations.push_back(durations[i]);
     }
     auto it = (all_durations.size() * quant + 50) / 100 - 1;
-    std::nth_element(all_durations.begin(), all_durations.begin() + it,
-                     all_durations.end());
+    std::nth_element(
+        all_durations.begin(), all_durations.begin() + it, all_durations.end());
     return all_durations[it];
   }
   void Record(double ns) { perThreadCounter_[threadIDHash()].Record(ns); }
@@ -285,24 +307,24 @@ class Counters {
     return hasher(std::this_thread::get_id()) % kShards;
   }
 
- private:
+private:
   PerThreadCounter perThreadCounter_[kShards];
 };
 
 class PerfCounter {
- public:
+public:
   using static_map = std::unordered_map<std::string, std::unique_ptr<Counters>>;
   // Meyers' singleton:
-  static auto staticMap() -> static_map & {
+  static auto staticMap() -> static_map& {
     static static_map map(100);
     return map;
   }
-  static auto staticSpinLock() -> SpinLock & {
+  static auto staticSpinLock() -> SpinLock& {
     static SpinLock spinLock;
     return spinLock;
   }
 
-  static auto staticOrderedKeyList() -> std::vector<std::string> & {
+  static auto staticOrderedKeyList() -> std::vector<std::string>& {
     static std::vector<std::string> list;
     return list;
   }
@@ -313,24 +335,24 @@ class PerfCounter {
     staticOrderedKeyList().clear();
   }
 
-  static void Record(const std::string &name, double count) {
-    auto &map = staticMap();
-    auto &orderedKeyList = staticOrderedKeyList();
-    auto &spin_lock = staticSpinLock();
+  static void Record(const std::string& name, double count) {
+    auto& map            = staticMap();
+    auto& orderedKeyList = staticOrderedKeyList();
+    auto& spin_lock      = staticSpinLock();
     spin_lock.Lock();
     if (map.find(name) == map.end()) {
       map[name] = std::make_unique<Counters>();
       orderedKeyList.push_back(name);
     }
-    auto &value = map[name];
+    auto& value = map[name];
     spin_lock.Unlock();
     value->Record(count);
   }
 
   static std::string Report() {
-    auto &spin_lock = staticSpinLock();
-    auto &map = staticMap();
-    auto &orderedKeyList = staticOrderedKeyList();
+    auto& spin_lock      = staticSpinLock();
+    auto& map            = staticMap();
+    auto& orderedKeyList = staticOrderedKeyList();
     std::stringstream ss;
     std::vector<std::vector<std::string>> vec;
     spin_lock.Lock();
@@ -340,37 +362,38 @@ class PerfCounter {
     }
     for (auto key = orderedKeyList.begin(); key != orderedKeyList.end();
          ++key) {
-      vec.push_back({*key, std::to_string(map[*key]->mean()),
+      vec.push_back({*key,
+                     std::to_string(map[*key]->mean()),
                      std::to_string(map[*key]->p(99)),
                      std::to_string(map[*key]->now())});
     }
     spin_lock.Unlock();
-    DrawTable::DrawTB(ss, {25, 20, 20, 20}, {"Name", "Mean", "P99", "now"},
-                      vec);
+    DrawTable::DrawTB(
+        ss, {25, 20, 20, 20}, {"Name", "Mean", "P99", "now"}, vec);
     return ss.str();
   }
 };
 
 class Timer {
- protected:
+protected:
   using static_map = std::unordered_map<std::string, std::unique_ptr<Counters>>;
   // Meyers' singleton:
-  static auto staticMap() -> static_map & {
+  static auto staticMap() -> static_map& {
     static static_map map(100);
     return map;
   }
 
-  static auto staticSpinLock() -> SpinLock & {
+  static auto staticSpinLock() -> SpinLock& {
     static SpinLock spinLock;
     return spinLock;
   }
-  static auto staticOrderedKeyList() -> std::vector<std::string> & {
+  static auto staticOrderedKeyList() -> std::vector<std::string>& {
     static std::vector<std::string> list;
     return list;
   }
 
-  static inline std::string double2StringWithPrecision(double num,
-                                                       int precision) {
+  static inline std::string
+  double2StringWithPrecision(double num, int precision) {
     std::stringstream ss;
     ss << std::fixed;
     ss << std::setprecision(precision);
@@ -394,7 +417,7 @@ class Timer {
     return double2StringWithPrecision(ns, 3) + " s";
   }
 
- public:
+public:
   Timer(std::string timerName, int sampling_times = 1)
       : timerName_(timerName), sampling_times_(sampling_times) {
     start();
@@ -434,16 +457,16 @@ class Timer {
 
   void CumReport() {
     assert(!isEnd_);
-    isEnd_ = true;
-    auto &map = staticMap();
-    auto &orderedKeyList = staticOrderedKeyList();
-    auto &spin_lock = staticSpinLock();
+    isEnd_               = true;
+    auto& map            = staticMap();
+    auto& orderedKeyList = staticOrderedKeyList();
+    auto& spin_lock      = staticSpinLock();
     spin_lock.Lock();
     if (map.find(timerName_) == map.end()) {
       map[timerName_] = std::make_unique<Counters>();
       orderedKeyList.push_back(timerName_);
     }
-    auto &value = map[timerName_];
+    auto& value = map[timerName_];
     spin_lock.Unlock();
     value->Record(cum_count_);
     cum_count_ = 0;
@@ -461,40 +484,40 @@ class Timer {
     cum_sampling_times_++;
 
     assert(!isEnd_);
-    isEnd_ = true;
-    auto &map = staticMap();
-    auto &orderedKeyList = staticOrderedKeyList();
-    auto &spin_lock = staticSpinLock();
-    end_ = std::chrono::steady_clock::now();
+    isEnd_               = true;
+    auto& map            = staticMap();
+    auto& orderedKeyList = staticOrderedKeyList();
+    auto& spin_lock      = staticSpinLock();
+    end_                 = std::chrono::steady_clock::now();
     spin_lock.Lock();
     if (map.find(timerName_) == map.end()) {
       map[timerName_] = std::make_unique<Counters>();
       orderedKeyList.push_back(timerName_);
     }
-    auto &value = map[timerName_];
+    auto& value = map[timerName_];
     spin_lock.Unlock();
     value->Record(
         std::chrono::duration_cast<std::chrono::nanoseconds>(end_ - start_)
             .count());
   }
 
-  static void ManualRecordNs(const std::string &name, double ns) {
-    auto &map = staticMap();
-    auto &orderedKeyList = staticOrderedKeyList();
-    auto &spin_lock = staticSpinLock();
+  static void ManualRecordNs(const std::string& name, double ns) {
+    auto& map            = staticMap();
+    auto& orderedKeyList = staticOrderedKeyList();
+    auto& spin_lock      = staticSpinLock();
     spin_lock.Lock();
     if (map.find(name) == map.end()) {
       map[name] = std::make_unique<Counters>();
       orderedKeyList.push_back(name);
     }
-    auto &value = map[name];
+    auto& value = map[name];
     spin_lock.Unlock();
     value->Record(ns);
   }
 
-  static double ManualQuery(const std::string &key) {
-    auto &spin_lock = staticSpinLock();
-    auto &map = staticMap();
+  static double ManualQuery(const std::string& key) {
+    auto& spin_lock = staticSpinLock();
+    auto& map       = staticMap();
     spin_lock.Lock();
     double ret = map[key]->mean();
     spin_lock.Unlock();
@@ -502,9 +525,9 @@ class Timer {
   }
 
   static std::string Report() {
-    auto &spin_lock = staticSpinLock();
-    auto &map = staticMap();
-    auto &orderedKeyList = staticOrderedKeyList();
+    auto& spin_lock      = staticSpinLock();
+    auto& map            = staticMap();
+    auto& orderedKeyList = staticOrderedKeyList();
     std::stringstream ss;
     std::vector<std::vector<std::string>> vec;
     spin_lock.Lock();
@@ -524,59 +547,59 @@ class Timer {
     return ss.str();
   }
 
- protected:
+protected:
   bool isEnd_ = false;
   std::string timerName_;
   std::chrono::time_point<std::chrono::steady_clock> start_;
   std::chrono::time_point<std::chrono::steady_clock> end_;
-  double cum_count_ = 0;
+  double cum_count_         = 0;
   const int sampling_times_ = 1;
-  int cum_sampling_times_ = 0;
+  int cum_sampling_times_   = 0;
 };
 
 class RAIITimer : public Timer {
- public:
+public:
   RAIITimer(std::string timerName, int sampling_times = 1)
       : Timer(timerName, sampling_times) {}
   ~RAIITimer() { end(); }
 };
 
 class GPUTimer : public Timer {
- public:
-  GPUTimer(const std::string &name) : Timer(name) {}
+public:
+  GPUTimer(const std::string& name) : Timer(name) {}
   void end() override {
-#ifndef XMH_PERF_GPU
+#  ifndef XMH_PERF_GPU
     isEnd_ = true;
     return;
-#else
+#  else
     cudaDeviceSynchronize();
     assert(!isEnd_);
-    isEnd_ = true;
-    auto &map = staticMap();
-    auto &orderedKeyList = staticOrderedKeyList();
-    auto &spin_lock = staticSpinLock();
-    end_ = std::chrono::steady_clock::now();
+    isEnd_               = true;
+    auto& map            = staticMap();
+    auto& orderedKeyList = staticOrderedKeyList();
+    auto& spin_lock      = staticSpinLock();
+    end_                 = std::chrono::steady_clock::now();
     spin_lock.Lock();
     if (map.find(timerName_) == map.end()) {
       map[timerName_] = std::make_unique<Counters>();
       orderedKeyList.push_back(timerName_);
     }
-    auto &value = map[timerName_];
+    auto& value = map[timerName_];
     spin_lock.Unlock();
     value->Record(
         std::chrono::duration_cast<std::chrono::nanoseconds>(end_ - start_)
             .count());
-#endif
+#  endif
   }
 };
 
 class Reporter {
-  static auto staticReportThread() -> std::thread *& {
-    static std::thread *reportThread = nullptr;
+  static auto staticReportThread() -> std::thread*& {
+    static std::thread* reportThread = nullptr;
     return reportThread;
   }
 
-  static auto reportThreadFlag() -> std::atomic_bool & {
+  static auto reportThreadFlag() -> std::atomic_bool& {
     static std::atomic_bool reportThreadFlag_{true};
     return reportThreadFlag_;
   }
@@ -587,14 +610,14 @@ class Reporter {
     reportThreadFlag().store(true);
   }
 
- public:
+public:
   static void Clear() {
     Timer::Init();
     PerfCounter::Init();
   }
 
   static void StartReportThread(int intervalMilliSecond = 5000) {
-    auto &t = staticReportThread();
+    auto& t = staticReportThread();
     static std::mutex m;
     if (t == nullptr) {
       std::lock_guard<std::mutex> _(m);
@@ -604,7 +627,7 @@ class Reporter {
     }
   }
   static void StopReportThread() {
-    auto &t = staticReportThread();
+    auto& t = staticReportThread();
     if (t != nullptr) {
       reportThreadFlag().store(false);
       t->join();
@@ -618,7 +641,7 @@ class Reporter {
     std::cout << PerfCounter::Report() << std::flush;
   }
 
- private:
+private:
   static void ReportThread(int intervalMilliSecond = 5000) {
     while (reportThreadFlag().load()) {
       Report();
@@ -631,16 +654,16 @@ class Reporter {
 #else
 
 class PerfCounter {
- public:
+public:
   static void Init() {}
 
-  static void Record(const std::string &name, double count) {}
+  static void Record(const std::string& name, double count) {}
 
   static std::string Report() { return ""; }
 };
 
 class Timer {
- public:
+public:
   Timer(std::string timerName) {}
 
   static void Init() {}
@@ -653,14 +676,14 @@ class Timer {
 
   static std::string Report() { return ""; }
 
- private:
+private:
 };
 
 class Reporter {
- public:
+public:
   static void StartReportThread(int intervalMilliSecond = 5000) {}
   static void StopReportThread() {}
 };
 
 #endif
-}  // namespace xmh
+} // namespace xmh

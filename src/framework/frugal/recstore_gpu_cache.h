@@ -5,7 +5,8 @@
 
 namespace recstore {
 struct CacheQueryResult : public torch::CustomClassHolder {
-  CacheQueryResult(torch::Tensor values, torch::Tensor missing_index,
+  CacheQueryResult(torch::Tensor values,
+                   torch::Tensor missing_index,
                    torch::Tensor missing_keys)
       : values_(values),
         missing_index_(missing_index),
@@ -13,9 +14,8 @@ struct CacheQueryResult : public torch::CustomClassHolder {
 
   std::string __repr__() const {
     std::stringstream ss;
-    ss << "CacheQueryResult(values=" << values_
-       << ", missing_index=" << missing_index_
-       << ", missing_keys=" << missing_keys_ << ")";
+    ss << "CacheQueryResult(values=" << values_ << ", missing_index="
+       << missing_index_ << ", missing_keys=" << missing_keys_ << ")";
     return ss.str();
   }
 
@@ -29,18 +29,18 @@ struct CacheQueryResult : public torch::CustomClassHolder {
 };
 
 class GpuCache : public torch::CustomClassHolder {
-  using key_t = int64_t;
+  using key_t                            = int64_t;
   constexpr static int set_associativity = 2;
-  constexpr static int WARP_SIZE = 32;
-  constexpr static int bucket_size = WARP_SIZE * set_associativity;
+  constexpr static int WARP_SIZE         = 32;
+  constexpr static int bucket_size       = WARP_SIZE * set_associativity;
 
- public:
+public:
   GpuCache(int64_t num_items, int64_t emb_dim)
       : emb_dim(emb_dim),
         cache((num_items + bucket_size - 1) / bucket_size, emb_dim) {}
 
-  c10::intrusive_ptr<CacheQueryResult> Query(torch::Tensor keys,
-                                             torch::Tensor values) {
+  c10::intrusive_ptr<CacheQueryResult>
+  Query(torch::Tensor keys, torch::Tensor values) {
     // std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> Query(
     // torch::Tensor keys) {
     const cudaStream_t stream = at::cuda::getDefaultCUDAStream();
@@ -64,11 +64,14 @@ class GpuCache : public torch::CustomClassHolder {
     torch::Tensor missing_len =
         at::zeros(1, at::TensorOptions().dtype(torch::kLong).device(device));
 
-    cache.Query(static_cast<const key_t *>(keys.data_ptr<key_t>()),
-                keys.sizes()[0], static_cast<float *>(values.data_ptr<float>()),
-                (uint64_t *)(missing_index.data_ptr<int64_t>()),
-                static_cast<key_t *>(missing_keys.data_ptr<key_t>()),
-                (uint64_t *)missing_len.data_ptr<int64_t>(), stream);
+    cache.Query(
+        static_cast<const key_t*>(keys.data_ptr<key_t>()),
+        keys.sizes()[0],
+        static_cast<float*>(values.data_ptr<float>()),
+        (uint64_t*)(missing_index.data_ptr<int64_t>()),
+        static_cast<key_t*>(missing_keys.data_ptr<key_t>()),
+        (uint64_t*)missing_len.data_ptr<int64_t>(),
+        stream);
 
     auto missing_len_host = missing_len.cpu().item<int64_t>();
 
@@ -79,8 +82,8 @@ class GpuCache : public torch::CustomClassHolder {
         missing_index.slice(0, 0, missing_len_host);
     torch::Tensor ret_missing_key = missing_keys.slice(0, 0, missing_len_host);
 
-    return c10::make_intrusive<CacheQueryResult>(values, ret_missing_index,
-                                                 ret_missing_key);
+    return c10::make_intrusive<CacheQueryResult>(
+        values, ret_missing_index, ret_missing_key);
   }
 
   void Replace(torch::Tensor keys, torch::Tensor values) {
@@ -92,17 +95,22 @@ class GpuCache : public torch::CustomClassHolder {
     TORCH_CHECK(values.sizes()[1] == emb_dim,
                 "Embedding dimension must match ");
 
-    cache.Replace(keys.data_ptr<key_t>(), keys.sizes()[0],
-                  values.data_ptr<float>(), stream);
+    cache.Replace(keys.data_ptr<key_t>(),
+                  keys.sizes()[0],
+                  values.data_ptr<float>(),
+                  stream);
   }
 
   virtual ~GpuCache() = default;
 
- private:
+private:
   size_t emb_dim;
-  gpu_cache::gpu_cache<key_t, uint64_t, std::numeric_limits<key_t>::max(),
-                       set_associativity, WARP_SIZE>
+  gpu_cache::gpu_cache<key_t,
+                       uint64_t,
+                       std::numeric_limits<key_t>::max(),
+                       set_associativity,
+                       WARP_SIZE>
       cache;
 };
 
-}  // namespace recstore
+} // namespace recstore

@@ -7,32 +7,30 @@
 #include <unordered_set>
 #include <vector>
 
-
 class IndexTest : public ::testing::Test {
 protected:
   void SetUp() override {
-    IndexConfig config;  // 假设默认配置
-    index_ = new ExtendibleHash(config);  // 初始化为 ExtendibleHash 实例
+    IndexConfig config;                  // 假设默认配置
+    index_ = new ExtendibleHash(config); // 初始化为 ExtendibleHash 实例
   }
 
-  void TearDown() override {
-    delete index_;  
-  }
+  void TearDown() override { delete index_; }
 
-  Index* index_;  
+  Index* index_;
 };
 
 // 基本 Put 和 Get 测试
 TEST_F(IndexTest, BasicPutAndGet) {
-  uint64_t key = 123;
+  uint64_t key   = 123;
   uint64_t value = 456;
-  unsigned tid = 0;
+  unsigned tid   = 0;
 
-  index_->Put(key, value, tid);  // 插入
+  index_->Put(key, value, tid); // 插入
   uint64_t retrieved;
-  index_->Get(key, retrieved, tid);  // 检索
+  index_->Get(key, retrieved, tid); // 检索
 
-  EXPECT_EQ(retrieved, value) << "Failed to retrieve correct value for key " << key;
+  EXPECT_EQ(retrieved, value)
+      << "Failed to retrieve correct value for key " << key;
 }
 
 // 测试不存在的键
@@ -43,15 +41,16 @@ TEST_F(IndexTest, GetNonExistentKey) {
 
   index_->Get(key, retrieved, tid);
 
-  EXPECT_EQ(retrieved, 0) << "Non-existent key should return 0";  // 假设 0 为无效
+  EXPECT_EQ(retrieved, 0)
+      << "Non-existent key should return 0"; // 假设 0 为无效
 }
 
 // 测试键值覆盖
 TEST_F(IndexTest, PutOverwrite) {
-  uint64_t key = 100;
+  uint64_t key    = 100;
   uint64_t value1 = 200;
   uint64_t value2 = 300;
-  unsigned tid = 0;
+  unsigned tid    = 0;
 
   index_->Put(key, value1, tid);
   index_->Put(key, value2, tid);
@@ -70,7 +69,7 @@ TEST_F(IndexTest, BatchGetWithCoroutine) {
 
   // 插入数据
   for (int i = 0; i < num_pairs; i++) {
-    keys[i] = i + 5000;
+    keys[i]   = i + 5000;
     values[i] = i * 50;
     index_->Put(keys[i], values[i], tid);
   }
@@ -78,16 +77,18 @@ TEST_F(IndexTest, BatchGetWithCoroutine) {
   base::ConstArray<uint64_t> keys_array(keys.data(), num_pairs);
   std::vector<uint64_t> retrieved_values(num_pairs);
   bool sink_called = false;
-  int count = 0;
+  int count        = 0;
   // 创建 push_type 作为 sink
-  boost::coroutines2::coroutine<void>::push_type sink([this, &sink_called, &count](boost::coroutines2::coroutine<void>::pull_type& yield) {
-    const int batch_size = 32;
-    for(int i = 1 ; i <= 32 ; i ++ ){
-      yield();  // 暂停
-      sink_called = true;
-      count ++;
-    }
-  });
+  boost::coroutines2::coroutine<void>::push_type sink(
+      [this, &sink_called, &count](
+          boost::coroutines2::coroutine<void>::pull_type& yield) {
+        const int batch_size = 32;
+        for (int i = 1; i <= 32; i++) {
+          yield(); // 暂停
+          sink_called = true;
+          count++;
+        }
+      });
 
   index_->BatchGet(sink, keys_array, retrieved_values.data(), tid);
   LOG(INFO) << "count: " << count;
@@ -106,7 +107,7 @@ TEST_F(IndexTest, BatchGetWithoutSink) {
 
   // 插入数据
   for (int i = 0; i < num_pairs; i++) {
-    keys[i] = i + 2000;
+    keys[i]   = i + 2000;
     values[i] = i * 30;
     index_->Put(keys[i], values[i], tid);
   }
@@ -129,23 +130,25 @@ TEST_F(IndexTest, BatchPutWithCoroutine) {
 
   // 准备数据
   for (int i = 0; i < num_pairs; i++) {
-    keys[i] = i + 6000;
-    pointers[i] = i * 60;  // 模拟 pointers 值
+    keys[i]     = i + 6000;
+    pointers[i] = i * 60; // 模拟 pointers 值
   }
 
   base::ConstArray<uint64_t> keys_array(keys.data(), num_pairs);
   bool sink_called = false;
-  int count = 0;
+  int count        = 0;
 
   // 创建 push_type 作为 sink
-  boost::coroutines2::coroutine<void>::push_type sink([this, &sink_called, &count](boost::coroutines2::coroutine<void>::pull_type& yield) {
-    const int batch_size = 32;
-    for(int i = 1 ; i <= 10 ; i ++ ){  // 计算预期批次次数
-      yield();  // 暂停
-      sink_called = true;
-      count ++;
-    }
-  });
+  boost::coroutines2::coroutine<void>::push_type sink(
+      [this, &sink_called, &count](
+          boost::coroutines2::coroutine<void>::pull_type& yield) {
+        const int batch_size = 32;
+        for (int i = 1; i <= 10; i++) { // 计算预期批次次数
+          yield();                      // 暂停
+          sink_called = true;
+          count++;
+        }
+      });
 
   index_->BatchPut(sink, keys_array, pointers.data(), tid);
 
@@ -163,13 +166,13 @@ TEST_F(IndexTest, BatchPutWithCoroutine) {
 TEST_F(IndexTest, BulkLoadTest) {
   const int num_keys = 50;
   std::vector<uint64_t> keys(num_keys);
-  std::vector<Value_t> values(num_keys); 
+  std::vector<Value_t> values(num_keys);
   unsigned tid = 0;
 
   // 准备连续内存值
   for (int i = 0; i < num_keys; i++) {
-    keys[i] = i + 3000;
-    values[i] = i;  // 示例值
+    keys[i]   = i + 3000;
+    values[i] = i; // 示例值
   }
 
   base::ConstArray<uint64_t> keys_array(keys.data(), num_keys);
@@ -186,8 +189,8 @@ TEST_F(IndexTest, BulkLoadTest) {
 // 测试 LoadFakeData
 TEST_F(IndexTest, LoadFakeDataTest) {
   const int64_t key_capacity = 50;
-  const int value_size = sizeof(uint64_t);  // 假设 value_size 为指针大小
-  unsigned tid = 0;
+  const int value_size = sizeof(uint64_t); // 假设 value_size 为指针大小
+  unsigned tid         = 0;
 
   index_->LoadFakeData(key_capacity, value_size);
 

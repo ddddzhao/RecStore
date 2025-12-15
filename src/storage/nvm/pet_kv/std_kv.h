@@ -5,14 +5,14 @@
 namespace base {
 class DBApi {
 public:
-  virtual bool Write(uint64 key, const char *data, int size,
-                     uint32 expire_timet) = 0;
-  bool Write(uint64 key, const char *data, int size) {
+  virtual bool
+  Write(uint64 key, const char* data, int size, uint32 expire_timet) = 0;
+  bool Write(uint64 key, const char* data, int size) {
     return Write(key, data, size, 0);
   }
 
-  virtual bool Read(uint64 key, std::string *data, uint32 *expire_timet) = 0;
-  bool Read(uint64 key, std::string *data) {
+  virtual bool Read(uint64 key, std::string* data, uint32* expire_timet) = 0;
+  bool Read(uint64 key, std::string* data) {
     uint32 expire_timet = 0;
     if (!Read(key, data, &expire_timet))
       return false;
@@ -36,19 +36,19 @@ class TestDB : public DBApi {
 public:
   TestDB() {}
   ~TestDB() {}
-  virtual bool Write(uint64 key, const char *data, int size,
-                     uint32 expire_timet) override {
+  virtual bool
+  Write(uint64 key, const char* data, int size, uint32 expire_timet) override {
     key_values_[key] = std::make_pair(expire_timet, std::string(data, size));
     return true;
   }
-  virtual bool Read(uint64 key, std::string *data,
-                    uint32 *expire_timet) override {
+  virtual bool
+  Read(uint64 key, std::string* data, uint32* expire_timet) override {
     data->clear();
     auto it = key_values_.find(key);
     if (it == key_values_.end())
       return false;
     *expire_timet = it->second.first;
-    *data = it->second.second;
+    *data         = it->second.second;
     return true;
   }
 

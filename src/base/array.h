@@ -4,24 +4,23 @@
 #include <string>
 #include <vector>
 
-namespace base{
+namespace base {
 
 template <typename T>
 struct ConstArray {
-  const T *list = nullptr;
-  int size = 0;
+  const T* list = nullptr;
+  int size      = 0;
 
-  ConstArray(const T *list, int size) : list(list), size(size) {}
+  ConstArray(const T* list, int size) : list(list), size(size) {}
 
-  ConstArray(const std::vector<T> &vector)
-      : list(vector.data()), size(vector.size()) {}  // NOLINT
+  ConstArray(const std::vector<T>& vector)
+      : list(vector.data()), size(vector.size()) {} // NOLINT
 
-  ConstArray(const std::string &binary_data)  // NOLINT
-      : list(reinterpret_cast<const T *>(binary_data.data())),
+  ConstArray(const std::string& binary_data) // NOLINT
+      : list(reinterpret_cast<const T*>(binary_data.data())),
         size(binary_data.size() / sizeof(T)) {}
 
-  ConstArray(
-      const google::protobuf::RepeatedField<T> &repeated_field)  // NOLINT
+  ConstArray(const google::protobuf::RepeatedField<T>& repeated_field) // NOLINT
       : list(repeated_field.data()), size(repeated_field.size()) {}
 
   ConstArray() : list(nullptr), size(0) {}
@@ -31,9 +30,9 @@ struct ConstArray {
     return ConstArray<T>(list + start, end - start);
   }
 
-  void SetData(const void *data, int data_size) {
+  void SetData(const void* data, int data_size) {
     if (data_size % sizeof(T) == 0) {
-      list = reinterpret_cast<const T *>(data);
+      list = reinterpret_cast<const T*>(data);
       size = data_size / sizeof(T);
     } else {
       list = nullptr;
@@ -41,21 +40,22 @@ struct ConstArray {
     }
   }
 
-  void SetData(std::vector<T> &vector) {
+  void SetData(std::vector<T>& vector) {
     list = vector.data();
     size = vector.size();
   }
 
-  const T &operator[](int n) const { return list[n]; }
+  const T& operator[](int n) const { return list[n]; }
 
-  const T *Data() const { return list; }
+  const T* Data() const { return list; }
 
-  void SetData(const std::string &data) { SetData(data.data(), data.size()); }
+  void SetData(const std::string& data) { SetData(data.data(), data.size()); }
 
-  void AppendToVector(std::vector<T> *vector) const {
-    for (int i = 0; i < size; ++i) vector->push_back(list[i]);
+  void AppendToVector(std::vector<T>* vector) const {
+    for (int i = 0; i < size; ++i)
+      vector->push_back(list[i]);
   }
-  void CopyToVector(std::vector<T> *vector) const {
+  void CopyToVector(std::vector<T>* vector) const {
     vector->clear();
     AppendToVector(vector);
   }
@@ -67,7 +67,7 @@ struct ConstArray {
     return vector;
   }
 
-  void Set(const T *list_head, int list_size) {
+  void Set(const T* list_head, int list_size) {
     list = list_head;
     size = list_size;
   }
@@ -75,14 +75,14 @@ struct ConstArray {
   auto begin() const { return list; }
   auto end() const { return list + size; }
 
-  const T &front() const { return list[0]; }
+  const T& front() const { return list[0]; }
 
-  const T &back() const { return list[size - 1]; }
+  const T& back() const { return list[size - 1]; }
 
   int Size() const { return size; }
 
-  const char *binary_data() const {
-    return reinterpret_cast<const char *>(list);
+  const char* binary_data() const {
+    return reinterpret_cast<const char*>(list);
   }
   int64_t binary_size() const { return sizeof(T) * size; }
   std::string as_string() const {
@@ -90,7 +90,8 @@ struct ConstArray {
   }
   std::string Debug() const {
     std::string temp = "";
-    for (int i = 0; i < size; i++) temp += std::to_string(list[i]) + ",";
+    for (int i = 0; i < size; i++)
+      temp += std::to_string(list[i]) + ",";
     temp += "\n";
     return temp;
   }
@@ -98,56 +99,57 @@ struct ConstArray {
 
 template <typename T>
 struct MutableArray {
-  T *list = nullptr;
+  T* list  = nullptr;
   int size = 0;
 
-  MutableArray(T *list, int size) : list(list), size(size) {}
+  MutableArray(T* list, int size) : list(list), size(size) {}
 
-  MutableArray(std::vector<T> &vector)
-      : list(vector.data()), size(vector.size()) {}  // NOLINT
+  MutableArray(std::vector<T>& vector)
+      : list(vector.data()), size(vector.size()) {} // NOLINT
 
-  MutableArray(std::string &binary_data)  // NOLINT
-      : list(reinterpret_cast<T *>(binary_data.data())),
+  MutableArray(std::string& binary_data) // NOLINT
+      : list(reinterpret_cast<T*>(binary_data.data())),
         size(binary_data.size() / sizeof(T)) {}
 
   MutableArray() : list(nullptr), size(0) {}
 
-  T *Data() { return list; }
+  T* Data() { return list; }
 
-  void SetData(char *data, int data_size) {
+  void SetData(char* data, int data_size) {
     if (data_size % sizeof(T) == 0) {
-      list = reinterpret_cast<T *>(data);
+      list = reinterpret_cast<T*>(data);
       size = data_size / sizeof(T);
     } else {
-      *(int *)0 = 0;
-      list = nullptr;
-      size = 0;
+      *(int*)0 = 0;
+      list     = nullptr;
+      size     = 0;
     }
   }
 
-  void SetData(std::vector<T> &vector) {
+  void SetData(std::vector<T>& vector) {
     list = vector.data();
     size = vector.size();
   }
 
-  void SetData(std::string &data) { SetData(data.data(), data.size()); }
+  void SetData(std::string& data) { SetData(data.data(), data.size()); }
 
-  void AppendToVector(std::vector<T> *vector) const {
-    for (int i = 0; i < size; ++i) vector->push_back(list[i]);
+  void AppendToVector(std::vector<T>* vector) const {
+    for (int i = 0; i < size; ++i)
+      vector->push_back(list[i]);
   }
-  void CopyToVector(std::vector<T> *vector) const {
+  void CopyToVector(std::vector<T>* vector) const {
     vector->clear();
     AppendToVector(vector);
   }
 
-  void Set(T *list_head, int list_size) {
+  void Set(T* list_head, int list_size) {
     list = list_head;
     size = list_size;
   }
 
-  T &operator[](int n) { return list[n]; }
+  T& operator[](int n) { return list[n]; }
 
-  const T &operator[](int n) const { return list[n]; }
+  const T& operator[](int n) const { return list[n]; }
 
   ConstArray<T> ToConstArray() { return ConstArray<T>(list, size); }
 
@@ -156,10 +158,10 @@ struct MutableArray {
 
   int Size() const { return size; }
 
-  char *binary_data() const { return reinterpret_cast<char *>(list); }
+  char* binary_data() const { return reinterpret_cast<char*>(list); }
   int64_t binary_size() const { return sizeof(T) * size; }
   std::string as_string() const {
     return (list != nullptr) ? std::string(binary_data(), binary_size()) : "";
   }
 };
-}
+} // namespace base

@@ -12,16 +12,22 @@
 
 class LoadDBHelper {
 public:
-  LoadDBHelper(BaseKV *kv, int server_id, int warm_thread_count,
-               int64_t all_ps_warm_capacity, int value_size)
-      : kv_(kv), server_id_(server_id), warm_thread_count_(warm_thread_count),
-        warm_capacity_(all_ps_warm_capacity), value_size_(value_size) {}
+  LoadDBHelper(BaseKV* kv,
+               int server_id,
+               int warm_thread_count,
+               int64_t all_ps_warm_capacity,
+               int value_size)
+      : kv_(kv),
+        server_id_(server_id),
+        warm_thread_count_(warm_thread_count),
+        warm_capacity_(all_ps_warm_capacity),
+        value_size_(value_size) {}
 
   void PreLoadDB(bool shuffle_load = false) {
     uint64_t warm_kv_per_thread =
         (warm_capacity_ + warm_thread_count_ - 1) / warm_thread_count_;
     uint64_t start = 1;
-    uint64_t end = warm_capacity_ + 1;
+    uint64_t end   = warm_capacity_ + 1;
 
     // std::atomic<uint64_t> insert_to_this_db{0};
     uint64_t insert_to_this_db = 0;
@@ -37,17 +43,21 @@ public:
         "Server{} before load db, warm_capacity_ = {}, {}M, belong to this "
         "partititon inserting {} KVs, "
         "{}M ",
-        server_id_, warm_capacity_, (int)(warm_capacity_ / 1024 / 1024),
-        insert_to_this_db, (int)(insert_to_this_db / 1024 / 1024));
+        server_id_,
+        warm_capacity_,
+        (int)(warm_capacity_ / 1024 / 1024),
+        insert_to_this_db,
+        (int)(insert_to_this_db / 1024 / 1024));
 
     if (shuffle_load == false) {
       std::vector<std::thread> th(warm_thread_count_);
       for (int i = 0; i < warm_thread_count_; ++i) {
         th[i] = std::thread([this, i, warm_kv_per_thread, start, end]() {
-          char *pool = (char *)malloc(32 * 1024);
+          char* pool = (char*)malloc(32 * 1024);
           memset(pool, 'e', 32 * 1024);
           for (int64_t j = start + i * warm_kv_per_thread;
-               j < std::min(end, start + (i + 1) * warm_kv_per_thread); ++j) {
+               j < std::min(end, start + (i + 1) * warm_kv_per_thread);
+               ++j) {
             if (i == 0) {
               FB_LOG_EVERY_MS(INFO, 60000)
                   << (j - start - i * warm_kv_per_thread) * 100LL /
@@ -58,7 +68,7 @@ public:
               continue;
 
             uint64_t key = j;
-            float *emb = (float *)pool;
+            float* emb   = (float*)pool;
             for (int k = 0; k < value_size_ / sizeof(float); k++)
               emb[k] = key;
             kv_->Put(key, std::string_view(pool, value_size_), i);
@@ -70,7 +80,7 @@ public:
         th[i].join();
       }
     } else {
-      char *pool = (char *)malloc(32 * 1024);
+      char* pool = (char*)malloc(32 * 1024);
       memset(pool, 'e', 32 * 1024);
       CHECK_EQ(1, warm_thread_count_);
 
@@ -86,7 +96,7 @@ public:
         FB_LOG_EVERY_MS(INFO, 60000)
             << j * 100LL / to_insert_keys.size() << " %";
         uint64_t key = to_insert_keys[j];
-        float *emb = (float *)pool;
+        float* emb   = (float*)pool;
         for (int k = 0; k < value_size_ / sizeof(float); k++)
           emb[k] = key;
         kv_->Put(key, std::string_view(pool, value_size_), 0);
@@ -102,7 +112,7 @@ public:
     uint64_t warm_kv_per_thread =
         (warm_capacity_ + check_thread_num - 1) / check_thread_num;
     uint64_t start = 1;
-    uint64_t end = warm_capacity_ + 1;
+    uint64_t end   = warm_capacity_ + 1;
 
     std::vector<std::thread> th(check_thread_num);
 
@@ -113,7 +123,8 @@ public:
           [this, i, warm_kv_per_thread, start, end, &inserted_kv_nr]() {
             size_t right = 0;
             for (int j = start + i * warm_kv_per_thread;
-                 j < std::min(end, start + (i + 1) * warm_kv_per_thread); ++j) {
+                 j < std::min(end, start + (i + 1) * warm_kv_per_thread);
+                 ++j) {
               if (i == 0) {
                 FB_LOG_EVERY_MS(INFO, 10000)
                     << (j - start - i * warm_kv_per_thread) * 100LL /
@@ -125,7 +136,7 @@ public:
                 continue;
               std::string value;
               kv_->Get(key, value, i);
-              float *emb = (float *)value.c_str();
+              float* emb    = (float*)value.c_str();
               bool subright = true;
               for (int k = 0; k < value_size_ / sizeof(float); k++) {
                 // CHECK(std::fabs(emb[k] - key) < 1e-6);
@@ -146,7 +157,8 @@ public:
 
     if (inserted_kv_nr != warmup_kv_count_in_this_ps_)
       LOG(ERROR) << folly::sformat(
-          "Only insert {}/{}={}%", inserted_kv_nr.load(),
+          "Only insert {}/{}={}%",
+          inserted_kv_nr.load(),
           warmup_kv_count_in_this_ps_,
           inserted_kv_nr * 100 / warmup_kv_count_in_this_ps_);
     else
@@ -156,7 +168,7 @@ public:
   }
 
 private:
-  BaseKV *kv_;
+  BaseKV* kv_;
   int server_id_;
   int warm_thread_count_;
   uint64_t warmup_kv_count_in_this_ps_;

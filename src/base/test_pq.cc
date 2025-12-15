@@ -7,7 +7,7 @@
 #include "pq.h"
 
 class CustomElement {
- public:
+public:
   CustomElement(int value) : value(value) {}
 
   int Priority() const { return value; }
@@ -44,7 +44,8 @@ int main() {
   }
 
   LOG(INFO) << "sort elements";
-  std::sort(elements.begin(), elements.end(),
+  std::sort(elements.begin(),
+            elements.end(),
             [](const CustomElement* a, const CustomElement* b) {
               return a->Priority() > b->Priority();
             });
@@ -55,7 +56,8 @@ int main() {
   // 确保队列中的最大元素是预期的最大元素
   CHECK_EQ(
       priorityQueue.top()->Priority(),
-      (*std::min_element(elements.begin(), elements.end(),
+      (*std::min_element(elements.begin(),
+                         elements.end(),
                          [](const CustomElement* a, const CustomElement* b) {
                            return a->Priority() < b->Priority();
                          }))
@@ -70,7 +72,8 @@ int main() {
 
   CHECK_EQ(
       priorityQueue.top()->Priority(),
-      (*std::min_element(elements.begin(), elements.end() - 1,
+      (*std::min_element(elements.begin(),
+                         elements.end() - 1,
                          [](const CustomElement* a, const CustomElement* b) {
                            return a->Priority() < b->Priority();
                          }))
@@ -105,7 +108,7 @@ int main() {
       } else {
         priorityQueue.CheckConsistency();
 
-        auto select = folly::Random::rand32() % elements.size();
+        auto select             = folly::Random::rand32() % elements.size();
         elements[select]->value = dist(rng);
         priorityQueue.PushOrUpdate(elements[select]);
 

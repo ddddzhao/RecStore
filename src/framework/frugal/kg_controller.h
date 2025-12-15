@@ -28,42 +28,41 @@
 #include "parallel_pq.h"
 #include "torch_utils.h"
 
-
 namespace recstore {
 
-void RegisterKGCacheController(torch::Library &m);
+void RegisterKGCacheController(torch::Library& m);
 
 class KGCacheController : public torch::CustomClassHolder {
-  static KGCacheController *instance_;
+  static KGCacheController* instance_;
 
- public:
-  static c10::intrusive_ptr<KGCacheController> Init(
-      const std::string &json_str,
-      const std::vector<std::vector<int64_t>> &cached_range,
-      const int64_t nr_graph_nodes) {
+public:
+  static c10::intrusive_ptr<KGCacheController>
+  Init(const std::string& json_str,
+       const std::vector<std::vector<int64_t>>& cached_range,
+       const int64_t nr_graph_nodes) {
     GraphEnv::Init(json_str, cached_range, nr_graph_nodes);
     return c10::make_intrusive<KGCacheController>(json_str, cached_range);
   }
 
-  static KGCacheController *GetInstance() {
+  static KGCacheController* GetInstance() {
     CHECK(instance_ != nullptr);
     return instance_;
   }
 
-  KGCacheController(const std::string &json_str,
-                    const std::vector<std::vector<int64_t>> &cached_range) {
+  KGCacheController(const std::string& json_str,
+                    const std::vector<std::vector<int64_t>>& cached_range) {
     CHECK(instance_ == nullptr);
-    instance_ = this;
-    cached_range_ = cached_range;
+    instance_        = this;
+    cached_range_    = cached_range;
     auto json_config = json::parse(json_str);
-    num_gpus_ = json_config.at("num_gpus");
+    num_gpus_        = json_config.at("num_gpus");
 
     CHECK_EQ(num_gpus_, cached_range.size())
         << "cached ranges in GPUs not match # of GPUs";
 
-    L_ = json_config.at("L");
+    L_                    = json_config.at("L");
     kForwardItersPerStep_ = json_config.at("kForwardItersPerStep");
-    clr_ = json_config.at("clr");
+    clr_                  = json_config.at("clr");
 
     auto backward_mode = json_config.at("backwardMode");
 
@@ -84,7 +83,7 @@ class KGCacheController : public torch::CustomClassHolder {
     LOG(INFO) << "Construct KGCacheController done";
   }
 
- public:
+public:
   void RegTensorsPerProcess() { grad_processing_->RegTensorsPerProcess(); }
 
   void ProcessOneStep(int64_t step_no) {
@@ -105,8 +104,8 @@ class KGCacheController : public torch::CustomClassHolder {
     // ((GradAsyncProcessing *)grad_processing_)->PrintPq();
   }
 
- private:
-  GradProcessingBase *grad_processing_;
+private:
+  GradProcessingBase* grad_processing_;
   // config
   int num_gpus_;
   int L_;
@@ -115,4 +114,4 @@ class KGCacheController : public torch::CustomClassHolder {
   float clr_;
 };
 
-}  // namespace recstore
+} // namespace recstore

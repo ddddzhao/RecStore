@@ -9,10 +9,10 @@
 namespace base {
 
 class AsyncTimeHelper {
- public:
+public:
   explicit AsyncTimeHelper(int update_interval)
       : update_interval_(update_interval) {
-    stop_ = false;
+    stop_     = false;
     now_time_ = base::GetTimestamp();
     thread_.reset(new std::thread(&AsyncTimeHelper::Run, this));
   }
@@ -28,7 +28,7 @@ class AsyncTimeHelper {
     return helper.GetTime();
   }
 
- private:
+private:
   void Run() {
     while (!stop_) {
       now_time_ = base::GetTimestamp();
@@ -42,4 +42,4 @@ class AsyncTimeHelper {
   std::unique_ptr<std::thread> thread_;
 };
 
-}  // namespace base
+} // namespace base

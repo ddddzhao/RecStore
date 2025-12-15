@@ -84,7 +84,7 @@ struct FlatItemDetail {
 
 template <typename ItemT>
 class FlatItemCompressor {
- public:
+public:
   explicit FlatItemCompressor(int block_size = kDefaultBlockSize)
       : block_size_(block_size) {
     Clear();
@@ -107,7 +107,7 @@ class FlatItemCompressor {
   }
   int ToBlock(std::vector<std::string>* blocks) {
     std::string* pblock = nullptr;
-    int size = 0;
+    int size            = 0;
     for (; size < blocks->size(); ++size) {
       if (blocks->at(size).empty()) {
         pblock = &blocks->at(size);
@@ -125,12 +125,14 @@ class FlatItemCompressor {
     return size + 1;
   }
   void ToBlock(std::string* block) {
-    if (offsets_.size() < 2) return;
+    if (offsets_.size() < 2)
+      return;
     block->clear();
     AppendToBlock(block);
   }
   void AppendToBlock(std::string* block) {
-    if (offsets_.size() < 2) return;
+    if (offsets_.size() < 2)
+      return;
     offsets_[0] = offsets_.size() - 1;
     block->append(reinterpret_cast<const char*>(&offsets_[0]),
                   offsets_.size() * sizeof(int));
@@ -147,7 +149,7 @@ class FlatItemCompressor {
 
   static constexpr const int kDefaultBlockSize = (1 << 20) * 16;
 
- protected:
+protected:
   int block_size_ = 0;
   std::vector<int> offsets_;
   std::string item_data_;
@@ -155,15 +157,16 @@ class FlatItemCompressor {
 
 template <typename ValueT>
 class FlatKVCompressor {
- public:
+public:
   explicit FlatKVCompressor(int block_size = kDefaultBlockSize)
       : block_size_(block_size) {}
 
-  void AddItem(uint64_t key, const ValueT& value,
-               std::vector<std::string>* blocks) {
+  void
+  AddItem(uint64_t key, const ValueT& value, std::vector<std::string>* blocks) {
     keys_.push_back(key);
     value_compressor_.AddItem(value, nullptr);
-    if (byte_size() >= block_size_) ToBlock(blocks);
+    if (byte_size() >= block_size_)
+      ToBlock(blocks);
   }
 
   int byte_size() const {
@@ -172,10 +175,11 @@ class FlatKVCompressor {
   }
 
   void ToBlock(std::vector<std::string>* blocks) {
-    if (keys_.size() < 1) return;
+    if (keys_.size() < 1)
+      return;
     blocks->emplace_back();
     auto new_block = &blocks->back();
-    int key_num = keys_.size();
+    int key_num    = keys_.size();
     new_block->append(reinterpret_cast<const char*>(&key_num), sizeof(int));
     new_block->append(reinterpret_cast<const char*>(&keys_[0]),
                       keys_.size() * sizeof(uint64_t));
@@ -187,7 +191,7 @@ class FlatKVCompressor {
 
   static constexpr const int kDefaultBlockSize = (1 << 20) * 16;
 
- private:
+private:
   int block_size_ = 0;
   std::vector<uint64_t> keys_;
   FlatItemCompressor<ValueT> value_compressor_;

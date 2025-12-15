@@ -23,7 +23,7 @@ namespace recstore {
 class AsyncGradElement {
   static constexpr int kInf = std::numeric_limits<int>::max();
 
- public:
+public:
   AsyncGradElement(int64_t id) : id_(id) { RecaculatePriority(); }
 
   void MarkReadInStepN(int stepN) {
@@ -42,7 +42,7 @@ class AsyncGradElement {
   }
 
 #ifdef USE_SUB_GRAD_TENSOR
-  void MarkWriteInStepN(int stepN, const SubGradTensor &grad) {
+  void MarkWriteInStepN(int stepN, const SubGradTensor& grad) {
     write_step_.push_back(stepN);
     write_grad_.push_back(grad);
   }
@@ -89,7 +89,8 @@ class AsyncGradElement {
   }
 
   std::string ToString(bool withLock = true) const {
-    if (withLock) lock_.Lock();
+    if (withLock)
+      lock_.Lock();
     std::stringstream ss;
     ss << folly::sformat("id={}, read_step=[", id_);
     for (auto each : read_step_) {
@@ -104,7 +105,8 @@ class AsyncGradElement {
       ss << toString(each, false) << ",";
     }
     ss << "], priority=" << Priority();
-    if (withLock) lock_.Unlock();
+    if (withLock)
+      lock_.Unlock();
     return ss.str();
   }
 
@@ -136,8 +138,6 @@ class AsyncGradElement {
   void RemoveReadStep(int step_no) {
     // LOG(INFO) << "RemoveReadStep: id=" << id_ << ", step=" << step_no;
 
-
-    
     // auto newEnd =
     //     std::remove_if(read_step_.begin(), read_step_.end(),
     //                    [step_no](int value) { return value == step_no; });
@@ -148,14 +148,15 @@ class AsyncGradElement {
     CHECK_NE(read_step_.size(), 0) << ToString(false);
     CHECK_EQ(*read_step_.begin(), step_no) << "id is " << id_;
 #endif
-    if (read_step_.size() != 0) read_step_.erase(read_step_.begin());
+    if (read_step_.size() != 0)
+      read_step_.erase(read_step_.begin());
   }
 
   void Lock() { return lock_.Lock(); }
 
   void Unlock() { return lock_.Unlock(); }
 
- private:
+private:
   int64_t id_;
   std::vector<int> read_step_;
   std::vector<int> write_step_;
@@ -168,12 +169,12 @@ class AsyncGradElement {
   int64_t priority_;
   mutable base::SpinLock lock_;
 
- public:
+public:
   const int magic_ = 0xdeadbeef;
 };
 
 struct CompareAsyncGradElement {
-  bool operator()(const AsyncGradElement *a, const AsyncGradElement *b) const {
+  bool operator()(const AsyncGradElement* a, const AsyncGradElement* b) const {
     return a->Priority() > b->Priority();
   }
 };
@@ -181,7 +182,7 @@ struct CompareAsyncGradElement {
 class GradAsyncProcessing : public GradProcessingBase {
   static constexpr bool kUseBackThread_ = false;
 
- protected:
+protected:
   typedef std::pair<int64_t, torch::Tensor> GradWorkTask;
   static constexpr int kInf = std::numeric_limits<int>::max();
 
@@ -189,9 +190,9 @@ class GradAsyncProcessing : public GradProcessingBase {
   const int kUpdatePqWorkerNum_ = 0;
   std::unique_ptr<folly::CPUThreadPoolExecutor> update_pq_thread_pool_;
 
- public:
-  GradAsyncProcessing(const std::string &json_str,
-                      const std::vector<std::vector<int64_t>> &cached_range)
+public:
+  GradAsyncProcessing(const std::string& json_str,
+                      const std::vector<std::vector<int64_t>>& cached_range)
       : GradProcessingBase(json_str, cached_range),
         kEmbNumber_(full_emb_.size(0)),
         kGradDim_(full_emb_.size(1)),
@@ -223,7 +224,7 @@ class GradAsyncProcessing : public GradProcessingBase {
     }
     if (update_pq_use_omp_ == 2) {
       int temp = json_config_.value("kUpdatePqWorkerNum", 8);
-      *((int *)&kUpdatePqWorkerNum_) = temp;
+      *((int*)&kUpdatePqWorkerNum_) = temp;
       folly::CPUThreadPoolExecutor::Options option;
       option.setBlocking(
           folly::CPUThreadPoolExecutor::Options::Blocking::prohibit);
@@ -235,7 +236,7 @@ class GradAsyncProcessing : public GradProcessingBase {
   void StartThreads() override {
     CHECK(isInitialized_);
     dispatch_thread_stop_flag_ = false;
-    grad_thread_stop_flag_ = false;
+    grad_thread_stop_flag_     = false;
 
     if (kUseBackThread_) {
       for (int i = 0; i < nr_background_threads_; ++i) {
@@ -279,13 +280,13 @@ class GradAsyncProcessing : public GradProcessingBase {
     StartThreads();
   }
 
-  void WhenNewSampleComes(c10::intrusive_ptr<SlicedTensor> input_keys, int rank,
-                          int step_no) {
+  void WhenNewSampleComes(
+      c10::intrusive_ptr<SlicedTensor> input_keys, int rank, int step_no) {
     // 来了一个新样本step号：把<里面的ID, step号>插堆
-    auto *data = input_keys->GetSlicedTensor().data_ptr<int64_t>();
+    auto* data = input_keys->GetSlicedTensor().data_ptr<int64_t>();
     for (int i = 0; i < input_keys->GetSlicedTensor().size(0); ++i) {
       int64_t id = data[i];
-      auto *p = dict_[id];
+      auto* p    = dict_[id];
       base::LockGuard element_lock_guard(*p);
       p->MarkReadInStepN(step_no);
       p->RecaculatePriority();
@@ -295,10 +296,10 @@ class GradAsyncProcessing : public GradProcessingBase {
 
   void DetectNewSamplesCome() {
     for (int rank = 0; rank < num_gpus_; rank++) {
-      volatile int64_t *p_new_end =
+      volatile int64_t* p_new_end =
           circle_buffer_end_per_rank_[rank].data_ptr<int64_t>();
       int64_t new_end = *p_new_end;
-      volatile int64_t *p_old_end =
+      volatile int64_t* p_old_end =
           circle_buffer_end_cppseen_[rank].data_ptr<int64_t>();
       int64_t old_end = *p_old_end;
 
@@ -310,19 +311,20 @@ class GradAsyncProcessing : public GradProcessingBase {
         //     old_end, new_end);
 
         // add [circle_buffer_old_end, new_end)
-        if (new_end < old_end) new_end += L_;
+        if (new_end < old_end)
+          new_end += L_;
         for (int i = old_end; i < new_end; ++i) {
           int pointer = (i % L_);
-          int step = step_tensor_per_rank_[rank][pointer].item<int64_t>();
-          WhenNewSampleComes(cached_id_circle_buffer_[rank][pointer], rank,
-                             step);
+          int step    = step_tensor_per_rank_[rank][pointer].item<int64_t>();
+          WhenNewSampleComes(
+              cached_id_circle_buffer_[rank][pointer], rank, step);
 
           // update the seen sample step of detect threads
           CHECK_LT(sample_step_cpp_seen_[rank], step);
           sample_step_cpp_seen_[rank] = step;
         }
 
-        new_end = new_end % L_;
+        new_end    = new_end % L_;
         *p_old_end = new_end;
       }
     }
@@ -354,7 +356,7 @@ class GradAsyncProcessing : public GradProcessingBase {
 #endif
         continue;
       }
-      auto *p = pq_->top();
+      auto* p = pq_->top();
 
       // re-read
       if (!p) {
@@ -372,11 +374,11 @@ class GradAsyncProcessing : public GradProcessingBase {
 
 #ifdef USE_SUB_GRAD_TENSOR
       std::vector<torch::Tensor> grads;
-      for (auto &each : vec_grads) {
+      for (auto& each : vec_grads) {
         grads.push_back(each.to_tensor());
       }
 #else
-      auto &grads = vec_grads;
+      auto& grads = vec_grads;
 #endif
 
       static int round_robin = 0;
@@ -411,18 +413,19 @@ class GradAsyncProcessing : public GradProcessingBase {
 
   void GradWorkThread(int thread_id) {
     torch::AutoGradMode guard_false(false);
-    auto *queue = backthread_work_queues_[thread_id].get();
+    auto* queue = backthread_work_queues_[thread_id].get();
     CHECK(queue != nullptr);
     while (!grad_thread_stop_flag_.load()) {
       std::pair<int64_t, torch::Tensor> p;
       while (!queue->read(p)) {
         // spin until we get a value
-        if (grad_thread_stop_flag_.load()) return;
+        if (grad_thread_stop_flag_.load())
+          return;
         continue;
       }
-      int64_t id = p.first;
+      int64_t id         = p.first;
       torch::Tensor grad = p.second;
-      grad = grad.cpu().unsqueeze_(0);
+      grad               = grad.cpu().unsqueeze_(0);
       full_emb_.index_add_(0, torch::full({1}, id), -clr_ * grad);
     }
   }
@@ -442,8 +445,8 @@ class GradAsyncProcessing : public GradProcessingBase {
       int priority = pq_->MinPriority();
       if (priority > step_no) {
 #ifdef XMH_DEBUG_KG
-        LOG(INFO) << folly::sformat("top(pq)'s priority={} > step_no{}.",
-                                    priority, step_no);
+        LOG(INFO) << folly::sformat(
+            "top(pq)'s priority={} > step_no{}.", priority, step_no);
 #endif
         break;
       }
@@ -456,11 +459,12 @@ class GradAsyncProcessing : public GradProcessingBase {
   }
 
   void UpsertPqThreadMethod2ThreadPool(
-      const std::vector<torch::Tensor> &input_keys,
-      const std::vector<torch::Tensor> &input_grads, int step_no,
+      const std::vector<torch::Tensor>& input_keys,
+      const std::vector<torch::Tensor>& input_grads,
+      int step_no,
       int thread_id) {
     for (int rank = 0; rank < input_keys.size(); ++rank) {
-      auto *data = input_keys[rank].data_ptr<int64_t>();
+      auto* data = input_keys[rank].data_ptr<int64_t>();
       CHECK(input_keys[rank].is_cpu());
       CHECK_EQ(input_grads[rank].dim(), 2);
 
@@ -474,32 +478,36 @@ class GradAsyncProcessing : public GradProcessingBase {
 #ifdef USE_SUB_GRAD_TENSOR
         recstore::SubGradTensor grad_tensor(input_grads[rank], i);
 #else
-#error "not use SubGradTensor "
+#  error "not use SubGradTensor "
         torch::Tensor grad_tensor = input_grads[rank][i];
 #endif
 
-        auto *p = dict_[id];
+        auto* p = dict_[id];
         // NOTE: 改了优先级
         base::LockGuard element_lock_guard(*p);
         p->RemoveReadStep(step_no);
         p->MarkWriteInStepN(step_no, grad_tensor);
         p->RecaculatePriority();
 #ifdef XMH_DEBUG_KG
-        LOG(INFO) << folly::sformat("Push pq_ | id={}, step_no={}, grad={}", id,
-                                    step_no, toString(grad_tensor, false));
+        LOG(INFO) << folly::sformat(
+            "Push pq_ | id={}, step_no={}, grad={}",
+            id,
+            step_no,
+            toString(grad_tensor, false));
 #endif
         pq_->PushOrUpdate(p);
       }
     }
   }
 
-  void UpsertPq(const std::vector<torch::Tensor> &input_keys,
-                const std::vector<torch::Tensor> &input_grads, int step_no) {
+  void UpsertPq(const std::vector<torch::Tensor>& input_keys,
+                const std::vector<torch::Tensor>& input_grads,
+                int step_no) {
     xmh::Timer timer_ProcessBackwardAsync("ProcessBack:UpsertPq");
     if (update_pq_use_omp_ == 0 || update_pq_use_omp_ == 1) {
 #pragma omp parallel for num_threads(num_gpus_) if (update_pq_use_omp_)
       for (int rank = 0; rank < input_keys.size(); ++rank) {
-        auto *data = input_keys[rank].data_ptr<int64_t>();
+        auto* data = input_keys[rank].data_ptr<int64_t>();
         CHECK(input_keys[rank].is_cpu());
         CHECK_EQ(input_grads[rank].dim(), 2);
 
@@ -509,29 +517,35 @@ class GradAsyncProcessing : public GradProcessingBase {
 #ifdef USE_SUB_GRAD_TENSOR
           recstore::SubGradTensor grad_tensor(input_grads[rank], i);
 #else
-#error "not use SubGradTensor "
+#  error "not use SubGradTensor "
           torch::Tensor grad_tensor = input_grads[rank][i];
 #endif
 
-          auto *p = dict_[id];
+          auto* p = dict_[id];
           // NOTE: 改了优先级
           base::LockGuard element_lock_guard(*p);
           p->RemoveReadStep(step_no);
           p->MarkWriteInStepN(step_no, grad_tensor);
           p->RecaculatePriority();
 #ifdef XMH_DEBUG_KG
-          LOG(INFO) << folly::sformat("Push pq_ | id={}, step_no={}, grad={}",
-                                      id, step_no,
-                                      toString(grad_tensor, false));
+          LOG(INFO) << folly::sformat(
+              "Push pq_ | id={}, step_no={}, grad={}",
+              id,
+              step_no,
+              toString(grad_tensor, false));
 #endif
           pq_->PushOrUpdate(p);
         }
       }
     } else if (update_pq_use_omp_ == 2) {
       for (int i = 0; i < kUpdatePqWorkerNum_; i++) {
-        update_pq_thread_pool_->add(
-            std::bind(&GradAsyncProcessing::UpsertPqThreadMethod2ThreadPool,
-                      this, input_keys, input_grads, step_no, i));
+        update_pq_thread_pool_->add(std::bind(
+            &GradAsyncProcessing::UpsertPqThreadMethod2ThreadPool,
+            this,
+            input_keys,
+            input_grads,
+            step_no,
+            i));
       }
       update_pq_thread_pool_->join();
     } else {
@@ -540,8 +554,8 @@ class GradAsyncProcessing : public GradProcessingBase {
     timer_ProcessBackwardAsync.end();
   }
 
-  void ProcessBackward(const std::vector<torch::Tensor> &input_keys,
-                       const std::vector<torch::Tensor> &input_grads,
+  void ProcessBackward(const std::vector<torch::Tensor>& input_keys,
+                       const std::vector<torch::Tensor>& input_grads,
                        int step_no) override {
     base::LockGuard _(large_lock_);
     // record the update
@@ -553,10 +567,11 @@ class GradAsyncProcessing : public GradProcessingBase {
       while (sample_step_cpp_seen_[rank].load() < step_no)
         FB_LOG_EVERY_MS(ERROR, 5000)
             << "Stalled in ProcessBackward: "
-            << folly::sformat(
-                   "rank={}, step_no={}, "
-                   "sample_step_cpp_seen_[rank]={}",
-                   rank, step_no, sample_step_cpp_seen_[rank].load());
+            << folly::sformat("rank={}, step_no={}, "
+                              "sample_step_cpp_seen_[rank]={}",
+                              rank,
+                              step_no,
+                              sample_step_cpp_seen_[rank].load());
     }
 
     UpsertPq(input_keys, input_grads, step_no);
@@ -564,14 +579,14 @@ class GradAsyncProcessing : public GradProcessingBase {
 
   void PrintPq() { base::LockGuard _(large_lock_); }
 
- protected:
+protected:
   int nr_background_threads_;
-  std::vector<AsyncGradElement *> dict_;
+  std::vector<AsyncGradElement*> dict_;
 
   const int64_t kEmbNumber_;
   const int kGradDim_;
 
-  recstore::AbstractParallelPq<AsyncGradElement> *pq_;
+  recstore::AbstractParallelPq<AsyncGradElement>* pq_;
 
   std::thread detect_thread_;
   std::thread dispatch_thread_;
@@ -592,4 +607,4 @@ class GradAsyncProcessing : public GradProcessingBase {
   std::atomic_bool grad_thread_stop_flag_{false};
 };
 
-}  // namespace recstore
+} // namespace recstore
