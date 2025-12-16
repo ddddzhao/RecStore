@@ -265,7 +265,60 @@ void KVClientOp::EmbRead(const RecTensor& keys, RecTensor& values) {
 
 void KVClientOp::EmbUpdate(const base::RecTensor& keys,
                            const base::RecTensor& grads) {
-  throw std::runtime_error("Not impl");
+  EmbUpdate("default", keys, grads);
+}
+
+void KVClientOp::EmbUpdate(const std::string& table_name,
+                           const base::RecTensor& keys,
+                           const base::RecTensor& grads) {
+  if (ps_client_ == nullptr) {
+    throw std::runtime_error("PS client is not initialized. Please call "
+                             "KVClientOp::SetPSClient() first.");
+  }
+
+  validate_keys(keys);
+  validate_embeddings(grads, "Grads");
+
+  const int64_t L = keys.shape(0);
+  if (grads.shape(0) != L) {
+    throw std::invalid_argument(
+        "Dimension mismatch: Keys has length " + std::to_string(L) +
+        " but grads has length " + std::to_string(grads.shape(0)));
+  }
+
+  const int64_t D = grads.shape(1);
+  if (D <= 0) {
+    throw std::invalid_argument(
+        "Invalid grad dimension D: " + std::to_string(D));
+  }
+
+  const uint64_t* keys_data = keys.data_as<uint64_t>();
+  base::ConstArray<uint64_t> keys_array(keys_data, L);
+
+  const float* grads_data = grads.data_as<float>();
+  std::vector<std::vector<float>> grads_vector;
+  grads_vector.reserve(L);
+  for (int64_t i = 0; i < L; ++i) {
+    std::vector<float> row(D);
+    std::memcpy(row.data(), grads_data + i * D, D * sizeof(float));
+    grads_vector.push_back(std::move(row));
+  }
+
+  int ret = ps_client_->UpdateParameter(table_name, keys_array, &grads_vector);
+  if (ret != 0) {
+    throw std::runtime_error("Failed to update embeddings via PS client.");
+  }
+}
+
+bool KVClientOp::InitEmbeddingTable(const std::string& table_name,
+                                    const EmbeddingTableConfig& config) {
+  if (ps_client_ == nullptr) {
+    throw std::runtime_error("PS client is not initialized. Please call "
+                             "KVClientOp::SetPSClient() first.");
+  }
+
+  int ret = ps_client_->InitEmbeddingTable(table_name, config);
+  return ret == 0;
 }
 
 void KVClientOp::EmbWrite(const RecTensor& keys, const RecTensor& values) {

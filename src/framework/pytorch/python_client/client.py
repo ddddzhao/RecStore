@@ -41,8 +41,30 @@ class RecstoreClient:
             raise TypeError(f"grads tensor must be of dtype torch.float32, but got {grads.dtype}")
         if keys.shape[0] != grads.shape[0]:
             raise ValueError("keys and grads must have the same number of entries")
+        # Backward compatibility: route to table-aware update on default table
+        self.ops.emb_update_table("default", keys, grads)
 
-        self.ops.emb_update(keys, grads)
+    def emb_update_table(self, table_name: str, keys: torch.Tensor, grads: torch.Tensor) -> None:
+        if not table_name:
+            raise ValueError("table_name must be non-empty")
+        if keys.dtype != torch.int64:
+            raise TypeError(f"keys tensor must be of dtype torch.int64, but got {keys.dtype}")
+        if grads.dtype != torch.float32:
+            raise TypeError(f"grads tensor must be of dtype torch.float32, but got {grads.dtype}")
+        if keys.shape[0] != grads.shape[0]:
+            raise ValueError("keys and grads must have the same number of entries")
+
+        self.ops.emb_update_table(table_name, keys, grads)
+
+    def init_embedding_table(self, table_name: str, num_embeddings: int, embedding_dim: int) -> bool:
+        if not table_name:
+            raise ValueError("table_name must be non-empty")
+        if not isinstance(num_embeddings, int) or num_embeddings <= 0:
+            raise ValueError("num_embeddings must be a positive integer")
+        if not isinstance(embedding_dim, int) or embedding_dim <= 0:
+            raise ValueError("embedding_dim must be a positive integer")
+
+        return bool(self.ops.init_embedding_table(table_name, num_embeddings, embedding_dim))
 
     def emb_write(self, keys: torch.Tensor, values: torch.Tensor) -> None:
         if keys.dtype != torch.int64:

@@ -30,7 +30,13 @@ public:
   GetParameter(const base::ConstArray<uint64_t>& keys, float* values) = 0;
 
   virtual int PutParameter(const base::ConstArray<uint64_t>& keys,
-                           const std::vector<std::vector<float>>& values) = 0;
+                           const std::vector<std::vector<float>>& values)   = 0;
+  virtual int UpdateParameter(const std::string& table_name,
+                              const base::ConstArray<uint64_t>& keys,
+                              const std::vector<std::vector<float>>* grads) = 0;
+
+  virtual int InitEmbeddingTable(const std::string& table_name,
+                                 const EmbeddingTableConfig& config) = 0;
   virtual int
   AsyncGetParameter(const base::ConstArray<uint64_t>& keys, float* values) = 0;
 
