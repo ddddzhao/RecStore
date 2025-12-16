@@ -2,6 +2,7 @@
 
 #include "base/tensor.h"
 #include "base_ps/base_client.h"
+#include <string>
 #include <mutex>
 #include <unordered_map>
 #include <vector>
@@ -66,6 +67,12 @@ public:
   // Optional Gradient Hook (can be omitted if optimizer is outside)
   virtual void
   EmbUpdate(const RecTensor& keys, const RecTensor& grads) = 0; // not urgent
+  virtual void EmbUpdate(const std::string& table_name,
+                         const RecTensor& keys,
+                         const RecTensor& grads)           = 0;
+
+  virtual bool InitEmbeddingTable(const std::string& table_name,
+                                  const EmbeddingTableConfig& config) = 0;
 
   // Prefetch & write (async)
   virtual uint64_t
@@ -112,6 +119,11 @@ public:
                 const base::RecTensor& values) override;
   void EmbUpdate(const base::RecTensor& keys,
                  const base::RecTensor& grads) override;
+  void EmbUpdate(const std::string& table_name,
+                 const base::RecTensor& keys,
+                 const base::RecTensor& grads) override;
+  bool InitEmbeddingTable(const std::string& table_name,
+                          const EmbeddingTableConfig& config) override;
   bool EmbExists(const base::RecTensor& keys) override;
   void EmbDelete(const base::RecTensor& keys) override;
   uint64_t EmbPrefetch(const base::RecTensor& keys,

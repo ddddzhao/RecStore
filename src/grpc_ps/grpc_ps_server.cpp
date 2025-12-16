@@ -166,11 +166,35 @@ private:
 
   Status UpdateParameter(ServerContext* context,
                          const UpdateParameterRequest* request,
-                         UpdateParameterResponse* reply) override {}
+                         UpdateParameterResponse* reply) override {
+    // mock impl.
+    // TODO: implement in CachePS
+    reply->set_success(true);
+    return Status::OK;
+  }
 
   Status InitEmbeddingTable(ServerContext* context,
                             const InitEmbeddingTableRequest* request,
                             InitEmbeddingTableResponse* reply) override {
+    // mock impl.
+    try {
+      if (request->has_config_payload()) {
+        auto payload            = request->config_payload();
+        nlohmann::json cfg      = nlohmann::json::parse(payload);
+        uint64_t num_embeddings = cfg.value("num_embeddings", 0);
+        uint64_t embedding_dim  = cfg.value("embedding_dim", 0);
+        FB_LOG_EVERY_MS(INFO, 2000)
+            << "InitEmbeddingTable: table=" << request->table_name()
+            << ", num_embeddings=" << num_embeddings
+            << ", embedding_dim=" << embedding_dim;
+        // cache_ps_->InitTable(request->table_name(), num_embeddings,
+        // embedding_dim);
+      }
+      reply->set_success(true);
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "InitEmbeddingTable parse error: " << e.what();
+      reply->set_success(false);
+    }
     return Status::OK;
   }
 

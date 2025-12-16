@@ -181,6 +181,72 @@ void emb_update_torch(const torch::Tensor& keys, const torch::Tensor& grads) {
       "emb_update_torch is deprecated. Use the Python-based sparse optimizer.");
 }
 
+void emb_update_table_torch(const std::string& table_name,
+                            const torch::Tensor& keys,
+                            const torch::Tensor& grads) {
+  RECSTORE_LOG(2,
+               "[INFO] emb_update_table_torch called for table="
+                   << table_name << ", keys shape=" << keys.sizes()
+                   << ", grads shape=" << grads.sizes());
+  TORCH_CHECK(!table_name.empty(), "table_name must be non-empty");
+  TORCH_CHECK(keys.dim() == 1, "Keys tensor must be 1-dimensional");
+  TORCH_CHECK(keys.scalar_type() == torch::kInt64,
+              "Keys tensor must have dtype int64");
+  TORCH_CHECK(keys.is_contiguous(), "Keys tensor must be contiguous");
+
+  TORCH_CHECK(grads.dim() == 2, "Grads tensor must be 2-dimensional");
+  TORCH_CHECK(grads.scalar_type() == torch::kFloat32,
+              "Grads tensor must have dtype float32");
+  TORCH_CHECK(grads.is_contiguous(), "Grads tensor must be contiguous");
+  TORCH_CHECK(keys.size(0) == grads.size(0),
+              "Keys and grads tensors must have the same number of entries");
+
+  if (keys.size(0) == 0) {
+    RECSTORE_LOG(3,
+                 "[DEBUG] emb_update_table_torch: num_keys==0, early return");
+    return;
+  }
+
+  auto op = GetKVClientOp();
+
+  torch::Tensor cpu_keys  = keys;
+  torch::Tensor cpu_grads = grads;
+  if (keys.is_cuda()) {
+    RECSTORE_LOG(2, "[INFO] emb_update_table_torch: copying GPU keys to CPU");
+    cpu_keys = keys.cpu();
+  }
+  if (grads.is_cuda()) {
+    RECSTORE_LOG(2, "[INFO] emb_update_table_torch: copying GPU grads to CPU");
+    cpu_grads = grads.cpu();
+  }
+
+  base::RecTensor rec_keys  = ToRecTensor(cpu_keys, base::DataType::UINT64);
+  base::RecTensor rec_grads = ToRecTensor(cpu_grads, base::DataType::FLOAT32);
+
+  RECSTORE_LOG(3, "[DEBUG] emb_update_table_torch: calling op->EmbUpdate");
+  op->EmbUpdate(table_name, rec_keys, rec_grads);
+  RECSTORE_LOG(3, "[DEBUG] emb_update_table_torch: EmbUpdate done");
+}
+
+bool init_embedding_table_torch(const std::string& table_name,
+                                int64_t num_embeddings,
+                                int64_t embedding_dim) {
+  RECSTORE_LOG(2,
+               "[INFO] init_embedding_table_torch called for table="
+                   << table_name << ", num_embeddings=" << num_embeddings
+                   << ", embedding_dim=" << embedding_dim);
+  TORCH_CHECK(!table_name.empty(), "table_name must be non-empty");
+  TORCH_CHECK(num_embeddings > 0, "num_embeddings must be positive");
+  TORCH_CHECK(embedding_dim > 0, "embedding_dim must be positive");
+
+  EmbeddingTableConfig cfg{};
+  cfg.num_embeddings = static_cast<uint64_t>(num_embeddings);
+  cfg.embedding_dim  = static_cast<uint64_t>(embedding_dim);
+
+  auto op = GetKVClientOp();
+  return op->InitEmbeddingTable(table_name, cfg);
+}
+
 void emb_write_torch(const torch::Tensor& keys, const torch::Tensor& values) {
   RECSTORE_LOG(0,
                "[DEBUG][op_torch] emb_write_torch: keys shape="
@@ -254,6 +320,8 @@ void emb_write_torch(const torch::Tensor& keys, const torch::Tensor& values) {
 TORCH_LIBRARY(recstore_ops, m) {
   m.def("emb_read", emb_read_torch);
   m.def("emb_update", emb_update_torch);
+  m.def("emb_update_table", emb_update_table_torch);
+  m.def("init_embedding_table", init_embedding_table_torch);
   m.def("emb_write", emb_write_torch);
   m.def("emb_prefetch", emb_prefetch_torch);
   m.def("emb_wait_result", emb_wait_result_torch);
