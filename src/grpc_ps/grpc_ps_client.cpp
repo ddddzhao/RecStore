@@ -114,12 +114,13 @@ int GRPCParameterClient::GetParameter(const base::ConstArray<uint64_t>& keys,
                      sizeof(uint64_t) * key_size);
     // rpc
     // grpc::ClientContext context;
-    if(!get_param_contexts_[index]) {
+    if (!get_param_contexts_[index]) {
       get_param_contexts_[index] = std::make_unique<grpc::ClientContext>();
     }
     std::unique_ptr<ClientAsyncResponseReader<GetParameterResponse>> rpc =
-        stubs_[0]->AsyncGetParameter(get_param_contexts_[index].get(), request, &cq);
-    rpc->Finish(&response, &status, reinterpret_cast<void *>(index));
+        stubs_[0]->AsyncGetParameter(
+            get_param_contexts_[index].get(), request, &cq);
+    rpc->Finish(&response, &status, reinterpret_cast<void*>(index));
   }
   int get = 0;
   while (get != request_num) {
@@ -204,12 +205,12 @@ int GRPCParameterClient::GetParameter(const base::ConstArray<uint64_t>& keys,
                      sizeof(uint64_t) * key_size);
     // rpc
     // grpc::ClientContext context;
-    if(!get_param_contexts_[index]) {
+    if (!get_param_contexts_[index]) {
       get_param_contexts_[index] = std::make_unique<grpc::ClientContext>();
     }
-    get_param_resonse_readers_.emplace_back(
-        stubs_[0]->AsyncGetParameter(get_param_contexts_[index].get(), request, &cq));
-    auto &rpc = get_param_resonse_readers_.back();
+    get_param_resonse_readers_.emplace_back(stubs_[0]->AsyncGetParameter(
+        get_param_contexts_[index].get(), request, &cq));
+    auto& rpc = get_param_resonse_readers_.back();
     // GetParameter(&context, request, &response);
     rpc->Finish(&response, &status, reinterpret_cast<void*>(index));
   }
@@ -263,19 +264,19 @@ GRPCParameterClient::PrefetchParameter(const base::ConstArray<uint64_t>& keys) {
        start += MAX_PARAMETER_BATCH, ++index) {
     int key_size = std::min((int)(keys.Size() - start), MAX_PARAMETER_BATCH);
     pb.key_sizes_[index] = key_size;
-    auto &status = pb.status_[index];
-    if(!pb.contexts_[index]) {
+    auto& status         = pb.status_[index];
+    if (!pb.contexts_[index]) {
       pb.contexts_[index] = std::make_unique<grpc::ClientContext>();
     }
-    auto &request = pb.requests_[index];
-    auto &response = pb.responses_[index];
-    request.set_keys(reinterpret_cast<const char *>(&keys[start]),
-                    sizeof(uint64_t) * key_size);
+    auto& request  = pb.requests_[index];
+    auto& response = pb.responses_[index];
+    request.set_keys(reinterpret_cast<const char*>(&keys[start]),
+                     sizeof(uint64_t) * key_size);
     // rpc
     // grpc::ClientContext context;
-    pb.response_readers_.emplace_back(
-        stubs_[0]->AsyncGetParameter(pb.contexts_[index].get(), request, pb.cqs_.get()));
-    auto &rpc = pb.response_readers_.back();
+    pb.response_readers_.emplace_back(stubs_[0]->AsyncGetParameter(
+        pb.contexts_[index].get(), request, pb.cqs_.get()));
+    auto& rpc = pb.response_readers_.back();
     // GetParameter(&context, request, &response);
     rpc->Finish(&response, &status, reinterpret_cast<void*>(index));
   }
