@@ -138,7 +138,9 @@ public:
 
   /// optimizer interface
 
-  bool InitTable(const std::string& table_name, uint64_t num_embeddings, uint64_t embedding_dim) {
+  bool InitTable(const std::string& table_name,
+                 uint64_t num_embeddings,
+                 uint64_t embedding_dim) {
     // TODO: optimizer type from config
     optimizer_ = std::make_unique<SGD>(0.01);
     EmbeddingTableConfig config{num_embeddings, embedding_dim};
@@ -147,13 +149,16 @@ public:
     return true;
   }
 
-  bool UpdateParameter(const std::string& table_name, const ParameterCompressReader* reader, const std::vector<std::vector<float>>* grads, unsigned tid) {
+  bool UpdateParameter(const std::string& table_name,
+                       const ParameterCompressReader* reader,
+                       const std::vector<std::vector<float>>* grads,
+                       unsigned tid) {
     std::vector<uint64_t> keys_vec;
     // std::vector<base::ConstArray<float>> values;
     for (int i = 0; i < reader->item_size(); i++) {
       keys_vec.emplace_back(reader->item(i)->key);
       // values.emplace_back(
-          // (float*)reader->item(i)->data(), reader->item(i)->dim);
+      // (float*)reader->item(i)->data(), reader->item(i)->dim);
     }
     base::ConstArray<uint64_t> keys(keys_vec);
     // base_kv_->BatchPut(sink, keys, &values, tid);
