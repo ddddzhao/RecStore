@@ -160,9 +160,9 @@ public:
       // values.emplace_back(
       // (float*)reader->item(i)->data(), reader->item(i)->dim);
     }
-    base::ConstArray<uint64_t> keys(keys_vec);
+    // base::ConstArray<uint64_t> keys(keys_vec);
     // base_kv_->BatchPut(sink, keys, &values, tid);
-    optimizer_->Update(table_name, keys, *grads, tid);
+    optimizer_->Update(table_name, keys_vec, *grads, tid);
   }
 
 private:
