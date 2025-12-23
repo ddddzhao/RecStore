@@ -5,10 +5,11 @@ void SGD::Init(const std::vector<std::string> table_name,
                const EmbeddingTableConfig& config,
                BaseKV* base_kv) {
   for (const auto& name : table_name) {
-    SparseTensor* param_tensor = new SparseTensor();
+    SparseTensor* param_tensor  = new SparseTensor();
     std::vector<uint64_t> shape = {config.num_embeddings, config.embedding_dim};
-    TAG_TYPE tag = 0; // PARAMETER tag
-    param_tensor->init(const_cast<std::string&>(name), PARAMETER, tag, shape, base_kv);
+    TAG_TYPE tag                = 0; // PARAMETER tag
+    param_tensor->init(
+        const_cast<std::string&>(name), PARAMETER, tag, shape, base_kv);
     tensor_map_[name] = param_tensor;
   }
 }
@@ -62,16 +63,21 @@ void AdaGrad::Init(const std::vector<std::string> table_name,
                    const EmbeddingTableConfig& config,
                    BaseKV* base_kv) {
   for (const auto& name : table_name) {
-    SparseTensor* param_tensor = new SparseTensor();
+    SparseTensor* param_tensor  = new SparseTensor();
     std::vector<uint64_t> shape = {config.num_embeddings, config.embedding_dim};
-    TAG_TYPE tag = 0; 
-    param_tensor->init(const_cast<std::string&>(name), PARAMETER, tag, shape, base_kv);
+    TAG_TYPE tag                = 0;
+    param_tensor->init(
+        const_cast<std::string&>(name), PARAMETER, tag, shape, base_kv);
     tensor_map_[name] = param_tensor;
-    
-    
+
     std::string acc_table_name = name + "_accumulated_grad";
-    SparseTensor* acc_tensor = new SparseTensor();
-    acc_tensor->init(const_cast<std::string&>(acc_table_name), MOMENT_1, tag, shape, base_kv);
+    SparseTensor* acc_tensor   = new SparseTensor();
+    acc_tensor->init(
+        const_cast<std::string&>(acc_table_name),
+        MOMENT_1,
+        tag,
+        shape,
+        base_kv);
     tensor_map_[acc_table_name] = acc_tensor;
   }
 }
@@ -165,17 +171,23 @@ void RowWiseAdaGrad::Init(const std::vector<std::string> table_name,
                           const EmbeddingTableConfig& config,
                           BaseKV* base_kv) {
   for (const auto& name : table_name) {
-    SparseTensor* param_tensor = new SparseTensor();
+    SparseTensor* param_tensor  = new SparseTensor();
     std::vector<uint64_t> shape = {config.num_embeddings, config.embedding_dim};
-    TAG_TYPE tag = 0; 
-    param_tensor->init(const_cast<std::string&>(name), PARAMETER, tag, shape, base_kv);
+    TAG_TYPE tag                = 0;
+    param_tensor->init(
+        const_cast<std::string&>(name), PARAMETER, tag, shape, base_kv);
     tensor_map_[name] = param_tensor;
-    
-    
-    std::string acc_table_name = name + "_rowwise_accumulated_grad";
-    SparseTensor* acc_tensor = new SparseTensor();
-    std::vector<uint64_t> acc_shape = {config.num_embeddings, 1}; // One value per row
-    acc_tensor->init(const_cast<std::string&>(acc_table_name), MOMENT_1, tag, acc_shape, base_kv);
+
+    std::string acc_table_name      = name + "_rowwise_accumulated_grad";
+    SparseTensor* acc_tensor        = new SparseTensor();
+    std::vector<uint64_t> acc_shape = {
+        config.num_embeddings, 1}; // One value per row
+    acc_tensor->init(
+        const_cast<std::string&>(acc_table_name),
+        MOMENT_1,
+        tag,
+        acc_shape,
+        base_kv);
     tensor_map_[acc_table_name] = acc_tensor;
   }
 }
